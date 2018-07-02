@@ -4,6 +4,7 @@ from sklearn.metrics import roc_curve, auc, accuracy_score, roc_auc_score
 from sklearn.model_selection import GridSearchCV
 from tabulate import tabulate
 import numpy as np
+import os
 pd.set_option('display.max_columns', None)
 
 # First lets get some data
@@ -12,7 +13,7 @@ pd.set_option('display.max_columns', None)
 print("--------------------------Step 1 -----------------------------------")
 print(">> Here we will work with data, \nLets loads some data and see what we have to work with")
 print(">> Loading training data")
-train_data = pd.read_csv('train.csv')
+train_data = pd.read_csv(os.path.join(os.path.dirname(__file__),'data/train.csv'))
 print("\n\n>> Lets see the first 10 lines of this data set")
 print(train_data.head(10))
 print(">> Lets see some stats about this data\n\n")
