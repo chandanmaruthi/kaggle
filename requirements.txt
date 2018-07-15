@@ -1,9 +1,9 @@
 matplotlib==2.2.2
 tensorflow-gpu==1.8.0
-pandas==0.23.1
+pandas==0.22
 scikit-learn==0.19.1
 scipy==1.1.0
 xgboost==0.72
 tabulate==0.8.2
 category_encoders
-
+pandas-summary==0.0.41
