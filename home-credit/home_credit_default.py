@@ -133,7 +133,8 @@ def run(df, df_test, df_all, train=True):
     print('1')
     df = handle_categoricals(df, df_all)
     print('2')
-    df = handle_nulls(df)
+    #df = handle_nulls(df)
+    df.fillna(0, inplace=True)
     df_test = handle_categoricals(df_test,df_all)
 
     print(df.shape)
@@ -142,7 +143,7 @@ def run(df, df_test, df_all, train=True):
     df_test = add_missing_dummy_columns(df_test, df.columns)
     print(df.shape)
     print(df.shape)
-    df_test = df_test.fillna(method='ffill')
+    df_test.fillna(0, inplace=True)
     #exit()
     X_train, X_test, y_train, y_test = gen_train_test_split(df)
     model = model_rf(X_train, y_train)
@@ -164,7 +165,8 @@ def run(df, df_test, df_all, train=True):
         if model_inst['score'] > score:
             score = model_inst['score']
             selected_model = model_inst['model']
-    prediction = selected_model.predict(df_test)
+
+    prediction = selected_model.predict(df_test.drop(['TARGET'],axis=1))
     submission_df = pd.DataFrame()
     submission_df['SK_ID_CURR'] = df_test['SK_ID_CURR']
     submission_df['TARGET'] = prediction
@@ -181,8 +183,8 @@ def run(df, df_test, df_all, train=True):
 
 df_application = pd.read_csv('application_train.csv')
 df_application_test = pd.read_csv('application_test.csv')
-df_application = df_application[:1000]
-df_application_test = df_application_test[:1000]
+df_application = df_application
+df_application_test = df_application_test
 
 # le = LabelEncoder()
 # le.fit(df_application['NAME_TYPE_SUITE'].astype(str))
