@@ -8,7 +8,7 @@ from sklearn.preprocessing import LabelEncoder
 from sklearn.preprocessing import OneHotEncoder
 from sklearn.model_selection import cross_val_score
 from sklearn.metrics import roc_curve, auc, roc_auc_score
-import lightgbm as lgb
+import lightgbm as lgbm
 
 models = []
 
@@ -43,20 +43,6 @@ def handle_categoricals(df, all_data):
                 le_count += 1
             else:
                 oh_df = pd.concat([oh_df,pd.get_dummies(df[col].astype(str),prefix=col+'_')],axis=1)
-                # print('ce: ' + col)
-                # le = LabelEncoder()
-                # ohe = OneHotEncoder(sparse=False)
-                # df_tmp = pd.DataFrame()
-                # le.fit(all_df[col].astype(str))
-                # df_tmp[col] = le.transform(all_df[col].astype(str))
-                # df_tmp[col]= df_tmp[col].reshape(-1,1)
-                # print(df_tmp[col].shape)
-                # ohe.fit(df_tmp[col].reshape(len(df_tmp[col]),1))
-                # f = pd.DataFrame()
-                # f[col] = le.transform(df[col].astype(str))
-                # g = pd.DataFrame()
-                # g = ohe.transform(f[col].reshape(len(f[col]),1))
-                # oh_df = pd.concat([oh_df, pd.DataFrame(data=g)], axis=1)
                 df.drop([col], axis=1, inplace=True)
 
     print('%d columns were label encoded.' % le_count)
@@ -86,9 +72,9 @@ def gen_train_test_split(df):
     train_test_split(X, y, test_size=0.1, random_state=42)
     return train_features, test_features, train_labels, test_labels
 
-def model_rf(X, y):
+def model_rf(train_features, test_features, train_labels, test_labels):
     from sklearn.ensemble import RandomForestClassifier
-    rf_model = RandomForestClassifier(n_estimators = 100,
+    model = RandomForestClassifier(n_estimators = 100,
                                       random_state = 42,
                                       n_jobs=-1,
                                       oob_score=True,
@@ -97,22 +83,70 @@ def model_rf(X, y):
                                       max_features='auto',
                                       bootstrap=True)
     # Train the model on training data
-    rf_model.fit(X, y)
-    return  rf_model
+    model.fit(train_features, train_labels)
+    score = compute_score(model, test_features, test_labels)
+    record_model('random_forest',model, score)
+    return
+
+def model_gbm(train_features, test_features, train_labels, test_labels):
+    from sklearn.ensemble import GradientBoostingClassifier
+    param_test1 = {'n_estimators':range(20,81,10)}
+
+    gb = GradientBoostingClassifier(criterion='mse',
+                  learning_rate=0.01,
+                  max_depth=10,
+                  n_estimators=1000,
+                  random_state=42,
+                  max_features='sqrt')
+    gb.fit(train_features,train_labels)
+    accuracy = compute_score(gb, test_features, test_labels)
+    record_model("gbm_1", gb, accuracy)
+
+def model_xgb_2(train_features, test_features, train_labels, test_labels):
+    import xgboost as xgb
+    xgb_model_def = xgb.XGBClassifier(max_depth=20,
+                                      n_estimators=100,
+                                      learning_rate=0.01,
+                                      random_state=42,
+                                      max_features='sqrt')
+    xgb_model = xgb_model_def.fit(train_features,train_labels)
+    accuracy = compute_score(xgb_model, test_features, test_labels)
+    record_model("xgb_1", xgb_model, accuracy)
+
+def model_lgbm(X,X_test, y, y_test):
+    categorical_features = [c for c, col in enumerate(X.columns) if 'cat' in col]
+    train_data = lgbm.Dataset(X, label=y, categorical_feature=categorical_features)
+    test_data = lgbm.Dataset(X_test, label=y_test)
+
+    parameters = {
+        'application': 'binary',
+        'objective': 'binary',
+        'metric': 'auc',
+        'is_unbalance': 'true',
+        'boosting': 'gbdt',
+        'num_leaves': 31,
+        'feature_fraction': 0.5,
+        'bagging_fraction': 0.5,
+        'bagging_freq': 20,
+        'learning_rate': 0.05,
+        'verbose': 0,
+        # 'random_search_runs':100,
+        # 'num_rounds':5000,
+        # 'early_stopping_rounds':30,
+
+    }
+
+    model = lgbm.train(parameters,
+                           train_data,
+                           valid_sets=test_data,
+                           num_boost_round=5000,
+                           early_stopping_rounds=100)
+    #
+    #accuracy = compute_score(model, X_test, y_test)
+    record_model("lgbm_1", model, 10)
 
 
-
-def model_lgbm(X,y,X_test=None,y_test=None):
-    param = {'num_leaves': 31, 'num_trees': 100, 'objective': 'binary'}
-    param['metric'] = 'auc'
-    num_round = 10
-    train_data = lgb.Dataset(X, label=y)
-    bst = lgb.train(param, train_data, num_round)
-    num_round = 10
-    lgb.cv(param, train_data, num_round, nfold=5)
-    return bst
-
-def score_model(model, X_test, y_test):
+def compute_score(model, X_test, y_test):
     #predictions = rf_model.predict(test_features)
     #accuracy =  compute_score(rf_model,test_features,test_labels)
     #print(accuracy)
@@ -130,6 +164,8 @@ def record_model(model_name, model, score):
     models.append(model_inst)
 
 def run(df, df_test, df_all, train=True):
+    df_raw= df
+    df_test_raw= df_test
     print('1')
     df = handle_categoricals(df, df_all)
     print('2')
@@ -146,12 +182,17 @@ def run(df, df_test, df_all, train=True):
     df_test.fillna(0, inplace=True)
     #exit()
     X_train, X_test, y_train, y_test = gen_train_test_split(df)
-    model = model_rf(X_train, y_train)
-    score = score_model(model, X_test, y_test)
-    record_model('random_forest',model, score)
+    X_train_raw, X_test_raw, y_train_raw, y_test_raw = gen_train_test_split(df_raw)
+    #model_rf(X_train, X_test,y_train, y_test)
+    #model_gbm(X_train, X_test, y_train, y_test)
+    #model_xgb_2(X_train, X_test, y_train, y_test)
+    model_lgbm(X_train_raw, X_test_raw, y_train_raw, y_test_raw)
+    #exit()
+    #score = score_model(model, X_test, y_test)
+    #record_model('random_forest',model, score)
     #model = model_lgbm(X_train, y_train)
-    y_pred = model.predict(X_test)
-    score = roc_auc_score(y_test, model.predict(X_test))
+    #y_pred = model.predict(X_test)
+    #score = roc_auc_score(y_test, model.predict(X_test))
 
     #false_positive_rate, true_positive_rate, thresholds = roc_curve(y_test, model.predict(X_test))
     #score = score_model(model, X_test, y_test)
@@ -161,12 +202,16 @@ def run(df, df_test, df_all, train=True):
 
     selected_model = None
 
+    print(models)
     for model_inst in models:
         if model_inst['score'] > score:
+            name = model_inst['model_name']
             score = model_inst['score']
             selected_model = model_inst['model']
+        print(str(score) + '_' + name)
 
-    prediction = selected_model.predict(df_test.drop(['TARGET'],axis=1))
+    #prediction = selected_model.predict(df_test_raw.drop(['TARGET'],axis=1))
+    prediction = selected_model.predict(df_test_raw)
     submission_df = pd.DataFrame()
     submission_df['SK_ID_CURR'] = df_test['SK_ID_CURR']
     submission_df['TARGET'] = prediction
@@ -185,6 +230,10 @@ df_application = pd.read_csv('application_train.csv')
 df_application_test = pd.read_csv('application_test.csv')
 df_application = df_application
 df_application_test = df_application_test
+
+
+#df_application = df_application[:1000]
+#df_application_test = df_application_test[:1000]
 
 # le = LabelEncoder()
 # le.fit(df_application['NAME_TYPE_SUITE'].astype(str))
