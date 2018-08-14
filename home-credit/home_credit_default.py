@@ -15,7 +15,7 @@ models = []
 
 
 
-def handle_categoricals(df):
+def handle_categoricals(df, all_data):
     # Create a label encoder object
     le = LabelEncoder()
 
@@ -24,12 +24,17 @@ def handle_categoricals(df):
     oh_df = pd.DataFrame()
     # Iterate through the columns
     for col in df:
+        if col == 'TARGET':
+            continue
+        all_df = pd.DataFrame()
+        all_df[col] = all_data[col]
+        print(all_df.describe)
         if df[col].dtype == 'object':
             # If 2 or fewer unique categories
             if len(list(df[col].unique())) <= 2:
                 print('le :' + col)
                 # Train on the training data
-                le.fit(df[col])
+                le.fit(all_df[col])
                 # Transform both training and testing data
                 df[col] = le.transform(df[col])
                 # df_application[col] = le.transform(df_application[col])
@@ -37,20 +42,34 @@ def handle_categoricals(df):
                 # Keep track of how many columns were label encoded
                 le_count += 1
             else:
-                print('ce: ' + col)
-                le = LabelEncoder()
-                ohe = OneHotEncoder()
-                df_tmp = pd.DataFrame()
-                df_tmp[col] = le.fit_transform(df[col].astype(str)).reshape
-                ohe.fit(df_tmp[col])
-                oh_df = pd.concat([oh_df, ohe.transform(df_tmp[col])], axis=1)
+                oh_df = pd.concat([oh_df,pd.get_dummies(df[col].astype(str),prefix=col+'_')],axis=1)
+                # print('ce: ' + col)
+                # le = LabelEncoder()
+                # ohe = OneHotEncoder(sparse=False)
+                # df_tmp = pd.DataFrame()
+                # le.fit(all_df[col].astype(str))
+                # df_tmp[col] = le.transform(all_df[col].astype(str))
+                # df_tmp[col]= df_tmp[col].reshape(-1,1)
+                # print(df_tmp[col].shape)
+                # ohe.fit(df_tmp[col].reshape(len(df_tmp[col]),1))
+                # f = pd.DataFrame()
+                # f[col] = le.transform(df[col].astype(str))
+                # g = pd.DataFrame()
+                # g = ohe.transform(f[col].reshape(len(f[col]),1))
+                # oh_df = pd.concat([oh_df, pd.DataFrame(data=g)], axis=1)
                 df.drop([col], axis=1, inplace=True)
 
     print('%d columns were label encoded.' % le_count)
 
     df= pd.concat([df,oh_df],axis=1)
+    print(df.columns)
     return df
 
+def add_missing_dummy_columns( d, columns ):
+    missing_cols = set( columns ) - set( d.columns )
+    for c in missing_cols:
+        d[c] = 0
+    return d
 def handle_nulls(df):
     df.dropna(axis=1,inplace=True)
     return df
@@ -110,37 +129,46 @@ def record_model(model_name, model, score):
     print('{}: {}'.format(model_name, score))
     models.append(model_inst)
 
-def run(df, train=True):
+def run(df, df_test, df_all, train=True):
     print('1')
-    df = handle_categoricals(df)
+    df = handle_categoricals(df, df_all)
     print('2')
     df = handle_nulls(df)
-    if train:
-        print('3')
-        X_train, X_test, y_train, y_test = gen_train_test_split(df)
-        model = model_rf(X_train, y_train)
-        score = score_model(model, X_test, y_test)
-        record_model('random_forest',model, score)
-        #model = model_lgbm(X_train, y_train)
-        y_pred = model.predict(X_test)
-        score = roc_auc_score(y_test, model.predict(X_test))
+    df_test = handle_categoricals(df_test,df_all)
 
-        #false_positive_rate, true_positive_rate, thresholds = roc_curve(y_test, model.predict(X_test))
-        #score = score_model(model, X_test, y_test)
-        #record_model('lgbm',model, score)
-    else:
-        print('4')
-        score = 0
-        selected_model = None
-        for model_inst in models:
-            if model_inst['score'] > score:
-                score = model_inst['score']
-                selected_model = model_inst['model']
-        prediction = selected_model.predict(df)
-        submission_df = pd.DataFrame()
-        submission_df['SK_ID_CURR'] = df['SK_ID_CURR']
-        submission_df['TARGET'] = prediction
-        submission_df.to_csv('home_credit_submission.csv',',', index=False)
+    print(df.shape)
+    print(df_test.shape)
+    df = add_missing_dummy_columns(df, df_test.columns)
+    df_test = add_missing_dummy_columns(df_test, df.columns)
+    print(df.shape)
+    print(df.shape)
+    df_test = df_test.fillna(method='ffill')
+    #exit()
+    X_train, X_test, y_train, y_test = gen_train_test_split(df)
+    model = model_rf(X_train, y_train)
+    score = score_model(model, X_test, y_test)
+    record_model('random_forest',model, score)
+    #model = model_lgbm(X_train, y_train)
+    y_pred = model.predict(X_test)
+    score = roc_auc_score(y_test, model.predict(X_test))
+
+    #false_positive_rate, true_positive_rate, thresholds = roc_curve(y_test, model.predict(X_test))
+    #score = score_model(model, X_test, y_test)
+    #record_model('lgbm',model, score)
+    print('4')
+    score = 0
+
+    selected_model = None
+
+    for model_inst in models:
+        if model_inst['score'] > score:
+            score = model_inst['score']
+            selected_model = model_inst['model']
+    prediction = selected_model.predict(df_test)
+    submission_df = pd.DataFrame()
+    submission_df['SK_ID_CURR'] = df_test['SK_ID_CURR']
+    submission_df['TARGET'] = prediction
+    submission_df.to_csv('home_credit_submission.csv',',', index=False)
 
 #test
 # bureau_balance.csv
@@ -154,7 +182,7 @@ def run(df, train=True):
 df_application = pd.read_csv('application_train.csv')
 df_application_test = pd.read_csv('application_test.csv')
 df_application = df_application[:1000]
-#df_application_test = df_application_test[:1000]
+df_application_test = df_application_test[:1000]
 
 # le = LabelEncoder()
 # le.fit(df_application['NAME_TYPE_SUITE'].astype(str))
@@ -162,7 +190,6 @@ df_application = df_application[:1000]
 # ohe=OneHotEncoder()
 # ohe.fit(df_tmp)
 
-df_application.head(5)
-df_application.shape
-run(df_application, True)
-#run(df_application_test, False)
+all_data = pd.concat([df_application, df_application_test],axis=0)
+run(df_application,df_application_test,all_data, True)
+#run(df_application, df_application_test, all_data, False)
