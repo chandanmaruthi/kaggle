@@ -9,6 +9,8 @@ from sklearn.preprocessing import OneHotEncoder
 from sklearn.model_selection import cross_val_score
 from sklearn.metrics import roc_curve, auc, roc_auc_score
 import lightgbm as lgbm
+from sklearn.model_selection import GridSearchCV
+
 
 models = []
 
@@ -48,7 +50,7 @@ def handle_categoricals(df, all_data):
     print('%d columns were label encoded.' % le_count)
 
     df= pd.concat([df,oh_df],axis=1)
-    print(df.columns)
+    #print(df.columns)
     return df
 
 def add_missing_dummy_columns( d, columns ):
@@ -118,29 +120,102 @@ def model_lgbm(X,X_test, y, y_test):
     train_data = lgbm.Dataset(X, label=y, categorical_feature=categorical_features)
     test_data = lgbm.Dataset(X_test, label=y_test)
 
-    parameters = {
-        'application': 'binary',
-        'objective': 'binary',
-        'metric': 'auc',
-        'is_unbalance': 'true',
-        'boosting': 'gbdt',
-        'num_leaves': 31,
-        'feature_fraction': 0.5,
-        'bagging_fraction': 0.5,
-        'bagging_freq': 20,
-        'learning_rate': 0.05,
-        'verbose': 0,
-        # 'random_search_runs':100,
-        # 'num_rounds':5000,
-        # 'early_stopping_rounds':30,
-
+    params = {'boosting_type': 'gbdt',
+              'max_depth': -1,
+              'objective': 'binary',
+              'nthread': 3,  # Updated from nthread
+              'num_leaves': 64,
+              'learning_rate': 0.05,
+              'max_bin': 512,
+              'subsample_for_bin': 200,
+              'subsample': 1,
+              'subsample_freq': 1,
+              'colsample_bytree': 0.8,
+              'reg_alpha': 5,
+              'reg_lambda': 10,
+              'min_split_gain': 0.5,
+              'min_child_weight': 1,
+              'min_child_samples': 5,
+              'scale_pos_weight': 1,
+              'num_class': 1,
+              'metric': 'auc'}
+    # Create parameters to search
+    gridParams = {
+        'learning_rate': [0.005],
+        'n_estimators': [40],
+        'num_leaves': [6, 8, 12, 16],
+        'boosting_type': ['gbdt'],
+        'objective': ['binary'],
+        'random_state': [501],  # Updated from 'seed'
+        'colsample_bytree': [0.65, 0.66],
+        'subsample': [0.7, 0.75],
+        'reg_alpha': [1, 1.2],
+        'reg_lambda': [1, 1.2, 1.4],
     }
 
-    model = lgbm.train(parameters,
-                           train_data,
-                           valid_sets=test_data,
-                           num_boost_round=5000,
-                           early_stopping_rounds=100)
+    model = lgbm.LGBMClassifier(boosting_type= 'gbdt',
+          objective = 'binary',
+          n_jobs = 3, # Updated from 'nthread'
+          silent = True,
+          max_depth = params['max_depth'],
+          max_bin = params['max_bin'],
+          subsample_for_bin = params['subsample_for_bin'],
+          subsample = params['subsample'],
+          subsample_freq = params['subsample_freq'],
+          min_split_gain = params['min_split_gain'],
+          min_child_weight = params['min_child_weight'],
+          min_child_samples = params['min_child_samples'],
+          scale_pos_weight = params['scale_pos_weight'])
+
+    grid = GridSearchCV(model, gridParams,
+                        verbose=1,
+                        cv=4,
+                        n_jobs=2)
+
+
+    # Run the grid
+    grid.fit(X, y)
+    params = grid.best_params_
+    print(grid.best_params_)
+    print(grid.best_score_)
+    # exit()
+    # def prepLGB(data,
+    #             classCol='',
+    #             IDCol='',
+    #             fDrop=[]):
+    #
+    #     # Drop class column
+    #     if classCol != '':
+    #         labels = data[classCol]
+    #         fDrop = fDrop + [classCol]
+    #     else:
+    #         labels = []
+    #
+    #     if IDCol != '':
+    #         IDs = data[IDCol]
+    #     else:
+    #         IDs = []
+    #
+    #     if fDrop != []:
+    #         data = data.drop(fDrop,
+    #                          axis=1)
+    #
+    #     # Create LGB mats
+    #     lData = lgbm.Dataset(data, label=labels,
+    #                         free_raw_data=False,
+    #                         feature_name=list(data.columns),
+    #                         categorical_feature='auto')
+    #
+    #     return lData, labels, IDs, data
+    #
+    # params = {'boosting_type': 'gbdt', 'colsample_bytree': 0.65, 'learning_rate': 0.005, 'n_estimators': 40, 'num_leaves': 6,
+    #  'objective': 'binary', 'random_state': 501, 'reg_alpha': 1, 'reg_lambda': 1, 'subsample': 0.7}
+    model = lgbm.train(params,
+                    train_data,
+                    num_boost_round=10000,
+                    valid_sets=[train_data, test_data],
+                    early_stopping_rounds=500,
+                    verbose_eval=4)
     #
     #accuracy = compute_score(model, X_test, y_test)
     record_model("lgbm_1", model, 10)
@@ -232,8 +307,8 @@ df_application = df_application
 df_application_test = df_application_test
 
 
-#df_application = df_application[:1000]
-#df_application_test = df_application_test[:1000]
+df_application = df_application
+df_application_test = df_application_test
 
 # le = LabelEncoder()
 # le.fit(df_application['NAME_TYPE_SUITE'].astype(str))
