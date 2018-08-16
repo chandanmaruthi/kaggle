@@ -62,7 +62,15 @@ class util:
         return d
 
     def handle_nulls(df):
-        df.dropna(axis=1,inplace=True)
+        for col in df:
+            if col == 'TARGET':
+                continue
+            print(df[col].dtype)
+            if df[col].dtype == 'object':
+                df[col].add_categories(['un_specified'])
+                df[col].fillna('un_specified', inplace=True)
+            #else:
+            #    df[col].fillna(999, inplace=True)
         return df
 
     def compute_score(clf, X, y, scoring='accuracy'):
@@ -250,14 +258,14 @@ def run(df, df_test, df_all, train=True):
     df_raw= df
     df_test_raw= df_test
     df = util.handle_categoricals(df, df_all)
-    df.fillna(0, inplace=True)
+    df = util.handle_nulls(df)
     df_test = util.handle_categoricals(df_test,df_all)
 
     print(df.shape)
     print(df_test.shape)
     df = util.add_missing_dummy_columns(df, df_test.columns)
     df_test = util.add_missing_dummy_columns(df_test, df.columns)
-    df_test.fillna(0, inplace=True)
+    df_test = util.handle_nulls(df_test)
     X_train, X_test, y_train, y_test = util.gen_train_test_split(df)
     X_train_raw, X_test_raw, y_train_raw, y_test_raw = util.gen_train_test_split(df_raw)
     #model_rf(X_train, X_test,y_train, y_test)
@@ -290,9 +298,83 @@ df_application_test = pd.read_csv('application_test.csv')
 df_application = df_application
 df_application_test = df_application_test
 
+# CNT_CHILDREN
+def binn_col(df,col,buckets,labels):
+    return pd.cut(df[col],buckets, labels=labels)
 
-df_application = df_application
-df_application_test = df_application_test
+
+def bin_col_q_bins(df,col, bins=10):
+    return pd.qcut(df[col],bins, labels=False,duplicates='drop')
+
+
+
+array_binnable_cols = ['AMT_CREDIT',
+'AMT_ANNUITY',
+'AMT_GOODS_PRICE',
+'REGION_POPULATION_RELATIVE',
+'DAYS_BIRTH',
+'DAYS_EMPLOYED',
+'DAYS_REGISTRATION',
+'DAYS_ID_PUBLISH',
+'OWN_CAR_AGE',
+'APARTMENTS_AVG',
+'BASEMENTAREA_AVG',
+'YEARS_BEGINEXPLUATATION_AVG',
+'YEARS_BUILD_AVG',
+'COMMONAREA_AVG',
+'ELEVATORS_AVG',
+'ENTRANCES_AVG',
+'FLOORSMAX_AVG',
+'FLOORSMIN_AVG',
+'LANDAREA_AVG',
+'LIVINGAPARTMENTS_AVG',
+'LIVINGAREA_AVG',
+'NONLIVINGAPARTMENTS_AVG',
+'NONLIVINGAREA_AVG',
+'APARTMENTS_MODE',
+'BASEMENTAREA_MODE',
+'YEARS_BEGINEXPLUATATION_MODE',
+'YEARS_BUILD_MODE',
+'COMMONAREA_MODE',
+'ELEVATORS_MODE',
+'ENTRANCES_MODE',
+'FLOORSMAX_MODE',
+'FLOORSMIN_MODE',
+'LANDAREA_MODE',
+'LIVINGAPARTMENTS_MODE',
+'LIVINGAREA_MODE',
+'NONLIVINGAPARTMENTS_MODE',
+'NONLIVINGAREA_MODE',
+'APARTMENTS_MEDI',
+'BASEMENTAREA_MEDI',
+'YEARS_BEGINEXPLUATATION_MEDI',
+'YEARS_BUILD_MEDI',
+'COMMONAREA_MEDI',
+'ELEVATORS_MEDI',
+'ENTRANCES_MEDI',
+'FLOORSMAX_MEDI',
+'FLOORSMIN_MEDI',
+'LANDAREA_MEDI',
+'LIVINGAPARTMENTS_MEDI',
+'LIVINGAREA_MEDI',
+'NONLIVINGAPARTMENTS_MEDI',
+'NONLIVINGAREA_MEDI']
+
+
+subset = 0
+if subset >0:
+    df_application = df_application[:subset]
+    df_application_test = df_application_test[:subset]
+
+df_application['CNT_CHILDREN']= binn_col(df_application,'CNT_CHILDREN',[-1,1,2,10,50], labels=[1,2,3,4])
+df_application_test['CNT_CHILDREN']= binn_col(df_application,'CNT_CHILDREN',[-1,1,2,10,50], labels=[1,2,3,4])
+for col in array_binnable_cols:
+    print(col)
+    df_application[col] = bin_col_q_bins(df_application, col, 10)
+    df_application_test[col] = bin_col_q_bins(df_application, col, 10)
+
+#df_application = prep_data(df_application)
+#df_application_test = prep_data(df_application_test)
 
 all_data = pd.concat([df_application, df_application_test],axis=0)
 run(df_application,df_application_test,all_data, True)
