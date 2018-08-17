@@ -10,6 +10,7 @@ from sklearn.model_selection import cross_val_score
 from sklearn.metrics import roc_curve, auc, roc_auc_score
 import lightgbm as lgbm
 from sklearn.model_selection import GridSearchCV
+from sklearn.ensemble import ExtraTreesClassifier
 
 import warnings
 warnings.filterwarnings("ignore")
@@ -51,7 +52,7 @@ class util:
                     print('ce :' + col)
                     oh_df = pd.concat([oh_df,pd.get_dummies(df[col].astype(str),prefix=col+'_')],axis=1)
                     df.drop([col], axis=1, inplace=True)
-                    #print(oh_df.columns.values)
+                    print(oh_df.columns.values)
 
         print('%d columns were label encoded.' % le_count)
         print('%d columns were one hot encoded.' % oh_count)
@@ -276,8 +277,23 @@ def run(df, df_test, df_all, train=True):
     print(df.shape)
     df_test = util.handle_nulls(df_test)
     print(df.shape)
+    df.columns = df.columns.str.replace(' ', '')
     df.to_csv('application_processed.csv')
 
+    model = ExtraTreesClassifier()
+    model.fit(df.drop(['TARGET'], axis=1), df['TARGET'])
+    fi =model.feature_importances_
+
+    top_feature_importance = fi.sort()[len(fi)*.8:len[fi]-1]
+    min_fi = min(top_feature_importance)
+    features_with_imp = dict(zip(df.columns.values, fi))
+    selected_features = list((k for (k, v) in features_with_imp.iteritems() if v > min_fi))
+    print(selected_features)
+
+
+    df = df.loc[:,selected_features]
+    df_test = df_test.loc[:,selected_features]
+    exit()
     X_train, X_test, y_train, y_test = util.gen_train_test_split(df)
 
     X_train_raw, X_test_raw, y_train_raw, y_test_raw = util.gen_train_test_split(df_raw)
@@ -390,6 +406,10 @@ for col in array_binnable_cols:
     df_application['binned_' +col] = bin_col_q_bins(df_application, col, 10)
     df_application_test['binned_' +col] = bin_col_q_bins(df_application_test, col, 10)
 
+
+df_application['NAME_FAMILY_STATUS_IS_MARRIED'] = df_application['NAME_FAMILY_STATUS'].map({'Civilmarriage':1, 'Married':1, 'Separated':0, 'Single/notmarried':0,'Unknown':0, 'Widow':0})
+df_application['NAME_INCOME_TYPE_IS_WORKING'] = df_application['NAME_INCOME_TYPE'].map({'Businessman':0,'Commercialassociate':0,'Maternityleave':0, 'Pensioner':0,'Stateservant':1, 'Student':0,'Unemployed':0, 'Working':1})
+df_application['NAME_EDUCATION_TYPE_IS_WELL_EDUCATED'] = df_application['NAME_EDUCATION_TYPE'].map({'Academicdegree':1,'Highereducation':1,'Incompletehigher':1,'Lowersecondary':0,'Secondary/secondaryspecial':0})
 
 #df_application = prep_data(df_application)
 #df_application_test = prep_data(df_application_test)
