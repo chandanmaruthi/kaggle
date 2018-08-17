@@ -290,12 +290,12 @@ def run(df, df_test, df_all, train=True):
     # min_fi = min(top_feature_importance)
 
 
-    selected_features = list((k for (k, v) in features_with_imp.items() if (v > min_fi) or k=='TARGET'))
-    print(selected_features)
+    #selected_features = list((k for (k, v) in features_with_imp.items() if (v > min_fi) or k=='TARGET'))
+    #print(selected_features)
 
 
-    df = df[selected_features]
-    df_test = df_test[selected_features]
+    #df = df[selected_features]
+    #df_test = df_test[selected_features]
 
     X_train, X_test, y_train, y_test = util.gen_train_test_split(df)
 
