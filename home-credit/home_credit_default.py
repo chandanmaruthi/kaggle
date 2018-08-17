@@ -413,8 +413,11 @@ def make_subset(df, subset=0):
 
 
 # Make Subset
-df_application = make_subset(df_application, 1000)
-df_application_test = make_subset(df_application_test, 1000)
+import  sys
+if len(sys.argv) >2:
+    subset = int(sys.argv[1])
+    df_application = make_subset(df_application, subset)
+    df_application_test = make_subset(df_application_test, subset)
 
 # Clean up data
 df_application = clean_up(df_application)
