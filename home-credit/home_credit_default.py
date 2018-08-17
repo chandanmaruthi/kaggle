@@ -286,8 +286,7 @@ def run(df, df_test, df_all, train=True):
     fi =model.feature_importances_
     features_with_imp = dict(zip(df.columns.values, fi))
     fi.sort()
-    top_feature_importance = fi[int(len(fi)*.6):len(fi)-1]
-    min_fi = min(top_feature_importance)
+    top_feature_importance = fi[int(len(fi)*.22222222   min_fi = min(top_feature_importance)
 
 
     selected_features = list((k for (k, v) in features_with_imp.items() if (v > min_fi) or k=='TARGET'))
