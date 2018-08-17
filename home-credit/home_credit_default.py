@@ -91,7 +91,7 @@ class util:
         X = df.drop(['TARGET'],axis=1)
         y = df['TARGET']
         train_features, test_features, train_labels, test_labels = \
-        train_test_split(X, y, test_size=0.1, random_state=42)
+        train_test_split(X, y, test_size=0.2, random_state=42)
         return train_features, test_features, train_labels, test_labels
 
     def compute_score(model, X_test, y_test):
@@ -278,22 +278,25 @@ def run(df, df_test, df_all, train=True):
     df_test = util.handle_nulls(df_test)
     print(df.shape)
     df.columns = df.columns.str.replace(' ', '')
+    df_test.columns = df_test.columns.str.replace(' ', '')
     df.to_csv('application_processed.csv')
 
     model = ExtraTreesClassifier()
     model.fit(df.drop(['TARGET'], axis=1), df['TARGET'])
     fi =model.feature_importances_
-
-    top_feature_importance = fi.sort()[len(fi)*.8:len[fi]-1]
-    min_fi = min(top_feature_importance)
     features_with_imp = dict(zip(df.columns.values, fi))
-    selected_features = list((k for (k, v) in features_with_imp.iteritems() if v > min_fi))
+    fi.sort()
+    top_feature_importance = fi[int(len(fi)*.6):len(fi)-1]
+    min_fi = min(top_feature_importance)
+
+
+    selected_features = list((k for (k, v) in features_with_imp.items() if (v > min_fi) or k=='TARGET'))
     print(selected_features)
 
 
-    df = df.loc[:,selected_features]
-    df_test = df_test.loc[:,selected_features]
-    exit()
+    df = df[selected_features]
+    df_test = df_test[selected_features]
+
     X_train, X_test, y_train, y_test = util.gen_train_test_split(df)
 
     X_train_raw, X_test_raw, y_train_raw, y_test_raw = util.gen_train_test_split(df_raw)
@@ -392,27 +395,27 @@ array_binnable_cols = ['AMT_CREDIT',
 'NONLIVINGAREA_MEDI']
 
 
-subset = 0
-if subset >0:
-    df_application = df_application[:subset]
-    df_application_test = df_application_test[:subset]
-
-df_application['HAS_CHILDREN']= binn_col(df_application,'CNT_CHILDREN',[-1,1,50], labels=[0,1])
-df_application_test['HAS_CHILDREN']= binn_col(df_application_test,'CNT_CHILDREN',[-1,1,50], labels=[1,2])
-df_application['binned_' +'CNT_CHILDREN']= binn_col(df_application,'CNT_CHILDREN',[-1,1,3,50], labels=[1,2,3])
-df_application_test['binned_' +'CNT_CHILDREN']= binn_col(df_application_test,'CNT_CHILDREN',[-1,1,3,50], labels=[1,2,3])
-for col in array_binnable_cols:
-    print(col)
-    df_application['binned_' +col] = bin_col_q_bins(df_application, col, 10)
-    df_application_test['binned_' +col] = bin_col_q_bins(df_application_test, col, 10)
+def fe(df):
+    subset = 0
+    if subset >0:
+        df_application = df[:subset]
 
 
-df_application['NAME_FAMILY_STATUS_IS_MARRIED'] = df_application['NAME_FAMILY_STATUS'].map({'Civilmarriage':1, 'Married':1, 'Separated':0, 'Single/notmarried':0,'Unknown':0, 'Widow':0})
-df_application['NAME_INCOME_TYPE_IS_WORKING'] = df_application['NAME_INCOME_TYPE'].map({'Businessman':0,'Commercialassociate':0,'Maternityleave':0, 'Pensioner':0,'Stateservant':1, 'Student':0,'Unemployed':0, 'Working':1})
-df_application['NAME_EDUCATION_TYPE_IS_WELL_EDUCATED'] = df_application['NAME_EDUCATION_TYPE'].map({'Academicdegree':1,'Highereducation':1,'Incompletehigher':1,'Lowersecondary':0,'Secondary/secondaryspecial':0})
+    df['HAS_CHILDREN']= binn_col(df,'CNT_CHILDREN',[-1,1,50], labels=[0,1])
+    df['binned_' +'CNT_CHILDREN']= binn_col(df,'CNT_CHILDREN',[-1,1,3,50], labels=[1,2,3])
+    for col in array_binnable_cols:
+        print(col)
+        df['binned_' +col] = bin_col_q_bins(df, col, 10)
+        df['binned_' +col] = bin_col_q_bins(df, col, 10)
 
-#df_application = prep_data(df_application)
-#df_application_test = prep_data(df_application_test)
+
+    df['NAME_FAMILY_STATUS_IS_MARRIED'] = df['NAME_FAMILY_STATUS'].map({'Civilmarriage':1, 'Married':1, 'Separated':0, 'Single/notmarried':0,'Unknown':0, 'Widow':0})
+    df['NAME_INCOME_TYPE_IS_WORKING'] = df['NAME_INCOME_TYPE'].map({'Businessman':0,'Commercialassociate':0,'Maternityleave':0, 'Pensioner':0,'Stateservant':1, 'Student':0,'Unemployed':0, 'Working':1})
+    df['NAME_EDUCATION_TYPE_IS_WELL_EDUCATED'] = df['NAME_EDUCATION_TYPE'].map({'Academicdegree':1,'Highereducation':1,'Incompletehigher':1,'Lowersecondary':0,'Secondary/secondaryspecial':0})
+
+    return df
+df_application = fe(df_application)
+df_application_test = fe(df_application_test)
 
 all_data = pd.concat([df_application, df_application_test],axis=0)
 run(df_application,df_application_test,all_data, True)
