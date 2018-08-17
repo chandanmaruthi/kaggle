@@ -40,7 +40,7 @@ class util:
                 if len(list(df[col].unique())) <= 2:
                     print('le :' + col)
                     # Train on the training data
-                    le.fit(all_df[col])
+                    le.fit(all_df[col].astype(str))
                     # Transform both training and testing data
                     df[col] = le.transform(df[col])
                     # df_application[col] = le.transform(df_application[col])
@@ -72,7 +72,7 @@ class util:
                 continue
             #print(df[col].dtype)
             if df[col].dtype == 'object':
-                df[col].add_categories(['un_specified'])
+                #df[col].add_categories(['un_specified'])
                 df[col] = df[col].fillna('un_specified')
             elif str(df[col].dtype) == 'category':
                 print(str(df[col].dtype))
@@ -180,7 +180,7 @@ class Models:
                   'metric': 'auc'}
         # Create parameters to search
         gridParams = {
-            'learning_rate': [0.005],
+            'learning_rate': [0.001],
             'n_estimators': [40],
             'num_leaves': [6, 8, 12, 16],
             'boosting_type': ['gbdt'],
@@ -262,68 +262,6 @@ class Models:
 
 
 
-def run(df, df_test, df_all, train=True):
-    df_raw= df
-    df_test_raw= df_test
-    df = util.handle_categoricals(df, df_all)
-    df = util.handle_nulls(df)
-    df_test = util.handle_categoricals(df_test,df_all)
-
-    print(df.shape)
-    print(df_test.shape)
-    df = util.add_missing_dummy_columns(df, df_test.columns)
-    print(df.shape)
-    df_test = util.add_missing_dummy_columns(df_test, df.columns)
-    print(df.shape)
-    df_test = util.handle_nulls(df_test)
-    print(df.shape)
-    df.columns = df.columns.str.replace(' ', '')
-    df_test.columns = df_test.columns.str.replace(' ', '')
-    df.to_csv('application_processed.csv')
-
-    # model = ExtraTreesClassifier()
-    # model.fit(df.drop(['TARGET'], axis=1), df['TARGET'])
-    # fi =model.feature_importances_
-    # features_with_imp = dict(zip(df.columns.values, fi))
-    # fi.sort()
-    # top_feature_importance = fi[int(len(fi)*.2):len(fi)-1]
-    # min_fi = min(top_feature_importance)
-
-
-    #selected_features = list((k for (k, v) in features_with_imp.items() if (v > min_fi) or k=='TARGET'))
-    #print(selected_features)
-
-
-    #df = df[selected_features]
-    #df_test = df_test[selected_features]
-
-    X_train, X_test, y_train, y_test = util.gen_train_test_split(df)
-
-    X_train_raw, X_test_raw, y_train_raw, y_test_raw = util.gen_train_test_split(df_raw)
-
-    #model_rf(X_train, X_test,y_train, y_test)
-    #model_gbm(X_train, X_test, y_train, y_test)
-    #model_xgb_2(X_train, X_test, y_train, y_test)
-    #Models.model_lgbm(X_train_raw, X_test_raw, y_train_raw, y_test_raw)
-    Models.model_lgbm(X_train, X_test, y_train, y_test)
-    score = 0
-
-    selected_model = None
-
-    print(models)
-    for model_inst in models:
-        if model_inst['score'] > score:
-            name = model_inst['model_name']
-            score = model_inst['score']
-            selected_model = model_inst['model']
-        print(str(score) + '_' + name)
-
-    #prediction = selected_model.predict(df_test_raw.drop(['TARGET'],axis=1))
-    prediction = selected_model.predict(df_test_raw)
-    submission_df = pd.DataFrame()
-    submission_df['SK_ID_CURR'] = df_test['SK_ID_CURR']
-    submission_df['TARGET'] = prediction
-    submission_df.to_csv('home_credit_submission.csv',',', index=False)
 
 
 
@@ -395,12 +333,12 @@ array_binnable_cols = ['AMT_CREDIT',
 'NONLIVINGAREA_MEDI']
 
 
-def fe(df):
-    subset = 0
-    if subset >0:
-        df_application = df[:subset]
 
+def clean_up(df):
+    df = util.handle_nulls(df)
+    return df
 
+def fe(df, df_2):
     df['HAS_CHILDREN']= binn_col(df,'CNT_CHILDREN',[-1,1,50], labels=[0,1])
     df['binned_' +'CNT_CHILDREN']= binn_col(df,'CNT_CHILDREN',[-1,1,3,50], labels=[1,2,3])
     for col in array_binnable_cols:
@@ -413,9 +351,86 @@ def fe(df):
     df['NAME_INCOME_TYPE_IS_WORKING'] = df['NAME_INCOME_TYPE'].map({'Businessman':0,'Commercialassociate':0,'Maternityleave':0, 'Pensioner':0,'Stateservant':1, 'Student':0,'Unemployed':0, 'Working':1})
     df['NAME_EDUCATION_TYPE_IS_WELL_EDUCATED'] = df['NAME_EDUCATION_TYPE'].map({'Academicdegree':1,'Highereducation':1,'Incompletehigher':1,'Lowersecondary':0,'Secondary/secondaryspecial':0})
 
-    return df
-df_application = fe(df_application)
-df_application_test = fe(df_application_test)
+    df = util.handle_categoricals(df, pd.concat([df, df_2],axis=0))
 
+    return df
+
+def align_datasets(df, df2):
+    df = util.add_missing_dummy_columns(df, df2.columns)
+    df.columns = df.columns.str.replace(' ', '')
+    return df
+
+
+def featureSelection(df, df_test):
+    # Feature Selection
+    model = ExtraTreesClassifier()
+    model.fit(df.drop(['TARGET'], axis=1), df['TARGET'])
+    fi =model.feature_importances_
+    features_with_imp = dict(zip(df.columns.values, fi))
+    fi.sort()
+    top_feature_importance = fi[int(len(fi)*.2):len(fi)-1]
+    min_fi = min(top_feature_importance)
+    selected_features = list((k for (k, v) in features_with_imp.items() if (v > min_fi) or k=='TARGET'))
+    print(selected_features)
+    df = df[selected_features]
+    df_test = df_test[selected_features]
+    return df, df_test
+
+def run(df, df_test, df_all, train=True):
+    df_raw= df
+    df_test_raw= df_test
+    X_train, X_test, y_train, y_test = util.gen_train_test_split(df)
+
+    #model_rf(X_train, X_test,y_train, y_test)
+    #model_gbm(X_train, X_test, y_train, y_test)
+    #model_xgb_2(X_train, X_test, y_train, y_test)
+    #Models.model_lgbm(X_train_raw, X_test_raw, y_train_raw, y_test_raw)
+    Models.model_lgbm(X_train, X_test, y_train, y_test)
+    score = 0
+    selected_model = None
+    print(models)
+    for model_inst in models:
+        if model_inst['score'] > score:
+            name = model_inst['model_name']
+            score = model_inst['score']
+            selected_model = model_inst['model']
+        print(str(score) + '_' + name)
+
+    #prediction = selected_model.predict(df_test_raw.drop(['TARGET'],axis=1))
+    prediction = selected_model.predict(df_test)
+    submission_df = pd.DataFrame()
+    submission_df['SK_ID_CURR'] = df_test['SK_ID_CURR']
+    submission_df['TARGET'] = prediction
+    submission_df.to_csv('home_credit_submission.csv',',', index=False)
+
+def make_subset(df, subset=0):
+    if subset >0:
+        df = df[:subset]
+    return df
+
+
+
+
+
+# Make Subset
+df_application = make_subset(df_application, 1000)
+df_application_test = make_subset(df_application_test, 1000)
+
+# Clean up data
+df_application = clean_up(df_application)
+df_application_test =  clean_up(df_application_test)
+# Feature Engineer
+df_application = fe(df_application, df_application_test)
+df_application_test = fe(df_application_test, df_application)
+# Align Datasets
+df_application = align_datasets(df_application,df_application_test)
+df_application = align_datasets(df_application_test,df_application)
+# Checkpoint Save
+df_application.to_csv('application_processed.csv')
+df_application_test.to_csv('application_processed.csv')
+# Feature Selection
+#df_application, df_application_test = featureSelection(df_application, df_application_test)
+
+# Run Models
 all_data = pd.concat([df_application, df_application_test],axis=0)
 run(df_application,df_application_test,all_data, True)
