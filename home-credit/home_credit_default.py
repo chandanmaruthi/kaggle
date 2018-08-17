@@ -281,13 +281,13 @@ def run(df, df_test, df_all, train=True):
     df_test.columns = df_test.columns.str.replace(' ', '')
     df.to_csv('application_processed.csv')
 
-    model = ExtraTreesClassifier()
-    model.fit(df.drop(['TARGET'], axis=1), df['TARGET'])
-    fi =model.feature_importances_
-    features_with_imp = dict(zip(df.columns.values, fi))
-    fi.sort()
-    top_feature_importance = fi[int(len(fi)*.2):len(fi)-1]
-    min_fi = min(top_feature_importance)
+    # model = ExtraTreesClassifier()
+    # model.fit(df.drop(['TARGET'], axis=1), df['TARGET'])
+    # fi =model.feature_importances_
+    # features_with_imp = dict(zip(df.columns.values, fi))
+    # fi.sort()
+    # top_feature_importance = fi[int(len(fi)*.2):len(fi)-1]
+    # min_fi = min(top_feature_importance)
 
 
     selected_features = list((k for (k, v) in features_with_imp.items() if (v > min_fi) or k=='TARGET'))
