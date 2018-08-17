@@ -163,8 +163,8 @@ class Models:
                   'max_depth': -1,
                   'objective': 'binary',
                   'nthread': 3,  # Updated from nthread
-                  'num_leaves': 64,
-                  'learning_rate': 0.05,
+                  'num_leaves': 30,
+                  'learning_rate': 0.02,
                   'max_bin': 512,
                   'subsample_for_bin': 200,
                   'subsample': 1,
@@ -174,7 +174,7 @@ class Models:
                   'reg_lambda': 10,
                   'min_split_gain': 0.5,
                   'min_child_weight': 1,
-                  'min_child_samples': 5,
+                  'min_child_samples': 70,
                   'scale_pos_weight': 1,
                   'num_class': 1,
                   'metric': 'auc'}
@@ -253,7 +253,7 @@ class Models:
                         train_data,
                         num_boost_round=10000,
                         valid_sets=[train_data, test_data],
-                        early_stopping_rounds=500,
+                        early_stopping_rounds=100,
                         verbose_eval=4)
         #
         #accuracy = compute_score(model, X_test, y_test)
