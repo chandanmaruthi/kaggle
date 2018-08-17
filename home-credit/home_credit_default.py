@@ -367,6 +367,7 @@ subset = 0
 if subset >0:
     df_application = df_application[:subset]
     df_application_test = df_application_test[:subset]
+
 df_application['HAS_CHILDREN']= binn_col(df_application,'CNT_CHILDREN',[-1,1,50], labels=[0,1])
 df_application_test['HAS_CHILDREN']= binn_col(df_application_test,'CNT_CHILDREN',[-1,1,50], labels=[1,2])
 df_application['binned_' +'CNT_CHILDREN']= binn_col(df_application,'CNT_CHILDREN',[-1,1,3,50], labels=[1,2,3])
@@ -375,6 +376,7 @@ for col in array_binnable_cols:
     print(col)
     df_application['binned_' +col] = bin_col_q_bins(df_application, col, 10)
     df_application_test['binned_' +col] = bin_col_q_bins(df_application_test, col, 10)
+
 
 #df_application = prep_data(df_application)
 #df_application_test = prep_data(df_application_test)
