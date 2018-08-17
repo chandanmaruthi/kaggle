@@ -21,13 +21,14 @@ class util:
 
     def handle_categoricals(df, all_data):
         # Create a label encoder object
-        le = LabelEncoder()
+
 
         le_count = 0
         oh_count = 0
         oh_df = pd.DataFrame()
         # Iterate through the columns
         for col in df:
+            le = LabelEncoder()
             if col == 'TARGET':
                 continue
             all_df = pd.DataFrame()
@@ -50,6 +51,7 @@ class util:
                     print('ce :' + col)
                     oh_df = pd.concat([oh_df,pd.get_dummies(df[col].astype(str),prefix=col+'_')],axis=1)
                     df.drop([col], axis=1, inplace=True)
+                    #print(oh_df.columns.values)
 
         print('%d columns were label encoded.' % le_count)
         print('%d columns were one hot encoded.' % oh_count)
@@ -67,12 +69,15 @@ class util:
         for col in df:
             if col == 'TARGET':
                 continue
-            print(df[col].dtype)
+            #print(df[col].dtype)
             if df[col].dtype == 'object':
                 df[col].add_categories(['un_specified'])
-                df[col].fillna('un_specified', inplace=True)
-            #else:
-            #    df[col].fillna(999, inplace=True)
+                df[col] = df[col].fillna('un_specified')
+            elif str(df[col].dtype) == 'category':
+                print(str(df[col].dtype))
+                df[col] = df[col].cat.add_categories([999]).fillna(999)
+            else:
+                df[col] = df[col].fillna(999)
         return df
 
     def compute_score(clf, X, y, scoring='accuracy'):
@@ -266,14 +271,22 @@ def run(df, df_test, df_all, train=True):
     print(df.shape)
     print(df_test.shape)
     df = util.add_missing_dummy_columns(df, df_test.columns)
+    print(df.shape)
     df_test = util.add_missing_dummy_columns(df_test, df.columns)
+    print(df.shape)
     df_test = util.handle_nulls(df_test)
+    print(df.shape)
+    df.to_csv('application_processed.csv')
+
     X_train, X_test, y_train, y_test = util.gen_train_test_split(df)
+
     X_train_raw, X_test_raw, y_train_raw, y_test_raw = util.gen_train_test_split(df_raw)
+
     #model_rf(X_train, X_test,y_train, y_test)
     #model_gbm(X_train, X_test, y_train, y_test)
     #model_xgb_2(X_train, X_test, y_train, y_test)
-    Models.model_lgbm(X_train_raw, X_test_raw, y_train_raw, y_test_raw)
+    #Models.model_lgbm(X_train_raw, X_test_raw, y_train_raw, y_test_raw)
+    Models.model_lgbm(X_train, X_test, y_train, y_test)
     score = 0
 
     selected_model = None
