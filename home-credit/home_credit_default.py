@@ -42,7 +42,7 @@ class util:
                     # Train on the training data
                     le.fit(all_df[col].astype(str))
                     # Transform both training and testing data
-                    df[col] = le.transform(df[col])
+                    df['le_'+col] = le.transform(df[col])
                     # df_application[col] = le.transform(df_application[col])
 
                     # Keep track of how many columns were label encoded
@@ -52,7 +52,6 @@ class util:
                     print('ce :' + col)
                     oh_df = pd.concat([oh_df,pd.get_dummies(df[col].astype(str),prefix=col+'_')],axis=1)
                     df.drop([col], axis=1, inplace=True)
-                    print(oh_df.columns.values)
 
         print('%d columns were label encoded.' % le_count)
         print('%d columns were one hot encoded.' % oh_count)
@@ -71,7 +70,7 @@ class util:
             if col == 'TARGET':
                 continue
             #print(df[col].dtype)
-            if df[col].dtype == 'object':
+            if str(df[col].dtype) == 'object':
                 #df[col].add_categories(['un_specified'])
                 df[col] = df[col].fillna('un_specified')
             elif str(df[col].dtype) == 'category':
@@ -91,7 +90,7 @@ class util:
         X = df.drop(['TARGET'],axis=1)
         y = df['TARGET']
         train_features, test_features, train_labels, test_labels = \
-        train_test_split(X, y, test_size=0.2, random_state=42)
+        train_test_split(X, y, test_size=0.1, random_state=42)
         return train_features, test_features, train_labels, test_labels
 
     def compute_score(model, X_test, y_test):
@@ -163,8 +162,8 @@ class Models:
                   'max_depth': -1,
                   'objective': 'binary',
                   'nthread': 3,  # Updated from nthread
-                  'num_leaves': 30,
-                  'learning_rate': 0.02,
+                  'num_leaves': 64,
+                  'learning_rate': 0.05,
                   'max_bin': 512,
                   'subsample_for_bin': 200,
                   'subsample': 1,
@@ -174,13 +173,13 @@ class Models:
                   'reg_lambda': 10,
                   'min_split_gain': 0.5,
                   'min_child_weight': 1,
-                  'min_child_samples': 70,
+                  'min_child_samples': 5,
                   'scale_pos_weight': 1,
                   'num_class': 1,
                   'metric': 'auc'}
         # Create parameters to search
         gridParams = {
-            'learning_rate': [0.001],
+            'learning_rate': [0.005],
             'n_estimators': [40],
             'num_leaves': [6, 8, 12, 16],
             'boosting_type': ['gbdt'],
@@ -192,25 +191,24 @@ class Models:
             'reg_lambda': [1, 1.2, 1.4],
         }
 
-        model = lgbm.LGBMClassifier(boosting_type= 'gbdt',
-              objective = 'binary',
-              n_jobs = 3, # Updated from 'nthread'
-              silent = True,
-              max_depth = params['max_depth'],
-              max_bin = params['max_bin'],
-              subsample_for_bin = params['subsample_for_bin'],
-              subsample = params['subsample'],
-              subsample_freq = params['subsample_freq'],
-              min_split_gain = params['min_split_gain'],
-              min_child_weight = params['min_child_weight'],
-              min_child_samples = params['min_child_samples'],
-              scale_pos_weight = params['scale_pos_weight'])
+        model = lgbm.LGBMClassifier(boosting_type='gbdt',
+                                    objective='binary',
+                                    n_jobs=3,  # Updated from 'nthread'
+                                    silent=True,
+                                    max_depth=params['max_depth'],
+                                    max_bin=params['max_bin'],
+                                    subsample_for_bin=params['subsample_for_bin'],
+                                    subsample=params['subsample'],
+                                    subsample_freq=params['subsample_freq'],
+                                    min_split_gain=params['min_split_gain'],
+                                    min_child_weight=params['min_child_weight'],
+                                    min_child_samples=params['min_child_samples'],
+                                    scale_pos_weight=params['scale_pos_weight'])
 
         grid = GridSearchCV(model, gridParams,
                             verbose=1,
                             cv=4,
                             n_jobs=2)
-
 
         # Run the grid
         grid.fit(X, y)
@@ -250,13 +248,11 @@ class Models:
         # params = {'boosting_type': 'gbdt', 'colsample_bytree': 0.65, 'learning_rate': 0.005, 'n_estimators': 40, 'num_leaves': 6,
         #  'objective': 'binary', 'random_state': 501, 'reg_alpha': 1, 'reg_lambda': 1, 'subsample': 0.7}
         model = lgbm.train(params,
-                        train_data,
-                        num_boost_round=10000,
-                        valid_sets=[train_data, test_data],
-                        early_stopping_rounds=100,
-                        verbose_eval=4)
-        #
-        #accuracy = compute_score(model, X_test, y_test)
+                           train_data,
+                           num_boost_round=10000,
+                           valid_sets=[train_data, test_data],
+                           early_stopping_rounds=500,
+                           verbose_eval=-1)
         util.record_model("lgbm_1", model, 10)
 
 
@@ -265,10 +261,7 @@ class Models:
 
 
 
-df_application = pd.read_csv('application_train.csv')
-df_application_test = pd.read_csv('application_test.csv')
-df_application = df_application
-df_application_test = df_application_test
+
 
 # CNT_CHILDREN
 def binn_col(df,col,buckets,labels):
@@ -381,9 +374,9 @@ def run(df, df_test, df_all, train=True):
     df_test_raw= df_test
     X_train, X_test, y_train, y_test = util.gen_train_test_split(df)
 
-    #model_rf(X_train, X_test,y_train, y_test)
-    #model_gbm(X_train, X_test, y_train, y_test)
-    #model_xgb_2(X_train, X_test, y_train, y_test)
+    # Models.model_rf(X_train, X_test,y_train, y_test)
+    # Models.model_gbm(X_train, X_test, y_train, y_test)
+    # Models.model_xgb_2(X_train, X_test, y_train, y_test)
     #Models.model_lgbm(X_train_raw, X_test_raw, y_train_raw, y_test_raw)
     Models.model_lgbm(X_train, X_test, y_train, y_test)
     score = 0
@@ -411,29 +404,47 @@ def make_subset(df, subset=0):
 
 
 
-
-# Make Subset
-import  sys
-if len(sys.argv) >2:
-    subset = int(sys.argv[1])
+def prep():
+    df_application = pd.read_csv('application_train.csv')
+    df_application_test = pd.read_csv('application_test.csv')
+    df_application = df_application
+    df_application_test = df_application_test
+    # Make Subset :
+    subset = 0
     df_application = make_subset(df_application, subset)
     df_application_test = make_subset(df_application_test, subset)
+    print("{},{}".format(df_application.shape, df_application_test.shape))
+    # Clean up data
+    df_application = clean_up(df_application)
+    df_application_test =  clean_up(df_application_test)
+    print("{},{}".format(df_application.shape, df_application_test.shape))
+    # Feature Engineer
+    df_application = fe(df_application, df_application_test)
+    df_application_test = fe(df_application_test, df_application)
+    print("{},{}".format(df_application.shape, df_application_test.shape))
+    # Align Datasets
+    df_application = align_datasets(df_application,df_application_test)
+    df_application = align_datasets(df_application_test,df_application)
+    print("{},{}".format(df_application.shape, df_application_test.shape))
 
-# Clean up data
-df_application = clean_up(df_application)
-df_application_test =  clean_up(df_application_test)
-# Feature Engineer
-df_application = fe(df_application, df_application_test)
-df_application_test = fe(df_application_test, df_application)
-# Align Datasets
-df_application = align_datasets(df_application,df_application_test)
-df_application = align_datasets(df_application_test,df_application)
-# Checkpoint Save
-df_application.to_csv('application_processed.csv')
-df_application_test.to_csv('application_processed.csv')
-# Feature Selection
-#df_application, df_application_test = featureSelection(df_application, df_application_test)
+    # # Clean up data
+    # df_application = clean_up(df_application)
+    # df_application_test =  clean_up(df_application_test)
+    # print("{},{}".format(df_application.shape, df_application_test.shape))
 
-# Run Models
+    # Checkpoint Save
+    df_application.to_csv('application_processed.csv')
+    df_application_test.to_csv('application_test_processed.csv')
+    print("{},{}".format(df_application.shape, df_application_test.shape))
+
+
+    # Feature Selection
+    #df_application, df_application_test = featureSelection(df_application, df_application_test)
+#prep()
+#exit()
+df_application = pd.read_csv('application_processed.csv')
+df_application_test = pd.read_csv('application_test_processed.csv')
 all_data = pd.concat([df_application, df_application_test],axis=0)
-run(df_application,df_application_test,all_data, True)
+
+prep()
+#run(df_application,df_application_test,all_data, True)
