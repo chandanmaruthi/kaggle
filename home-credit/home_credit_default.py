@@ -11,8 +11,9 @@ from sklearn.metrics import roc_curve, auc, roc_auc_score
 import lightgbm as lgbm
 from sklearn.model_selection import GridSearchCV
 from sklearn.ensemble import ExtraTreesClassifier
-
 import warnings
+from tqdm import tqdm
+
 warnings.filterwarnings("ignore")
 
 models = []
@@ -28,7 +29,7 @@ class util:
         oh_count = 0
         oh_df = pd.DataFrame()
         # Iterate through the columns
-        for col in df:
+        for col in tqdm(df):
             le = LabelEncoder()
             if col == 'TARGET':
                 continue
@@ -38,7 +39,7 @@ class util:
             if df[col].dtype == 'object':
                 # If 2 or fewer unique categories
                 if len(list(df[col].unique())) <= 2:
-                    print('le :' + col)
+                    #print('le :' + col)
                     # Train on the training data
                     le.fit(all_df[col].astype(str))
                     # Transform both training and testing data
@@ -49,7 +50,7 @@ class util:
                     le_count += 1
                 else:
                     oh_count +=1
-                    print('ce :' + col)
+                    #print('ce :' + col)
                     oh_df = pd.concat([oh_df,pd.get_dummies(df[col].astype(str),prefix=col+'_')],axis=1)
                     df.drop([col], axis=1, inplace=True)
 
@@ -74,10 +75,10 @@ class util:
                 #df[col].add_categories(['un_specified'])
                 df[col] = df[col].fillna('un_specified')
             elif str(df[col].dtype) == 'category':
-                print(str(df[col].dtype))
-                df[col] = df[col].cat.add_categories([999]).fillna(999)
+                #print(str(df[col].dtype))
+                df[col] = df[col].cat.add_categories([99999]).fillna(99999)
             else:
-                df[col] = df[col].fillna(999)
+                df[col] = df[col].fillna(99999)
         return df
 
     def compute_score(clf, X, y, scoring='accuracy'):
@@ -98,7 +99,7 @@ class util:
         #accuracy =  compute_score(rf_model,test_features,test_labels)
         #print(accuracy)
         false_positive_rate, true_positive_rate, thresholds = roc_curve(y_test, model.predict_proba(X_test)[:,1])
-        print(auc(false_positive_rate, true_positive_rate))
+        #print(auc(false_positive_rate, true_positive_rate))
         score = roc_auc_score(y_test, model.predict(X_test))
         return score
 
@@ -107,7 +108,7 @@ class util:
         model_inst['model'] = model
         model_inst['model_name'] = model_name
         model_inst['score'] = score
-        print('{}: {}'.format(model_name, score))
+        #print('{}: {}'.format(model_name, score))
         models.append(model_inst)
 
 
@@ -213,8 +214,8 @@ class Models:
         # Run the grid
         grid.fit(X, y)
         params = grid.best_params_
-        print(grid.best_params_)
-        print(grid.best_score_)
+        #print(grid.best_params_)
+        #print(grid.best_score_)
         # exit()
         # def prepLGB(data,
         #             classCol='',
@@ -335,7 +336,7 @@ def fe(df, df_2):
     df['HAS_CHILDREN']= binn_col(df,'CNT_CHILDREN',[-1,1,50], labels=[0,1])
     df['binned_' +'CNT_CHILDREN']= binn_col(df,'CNT_CHILDREN',[-1,1,3,50], labels=[1,2,3])
     for col in array_binnable_cols:
-        print(col)
+        #print(col)
         df['binned_' +col] = bin_col_q_bins(df, col, 10)
         df['binned_' +col] = bin_col_q_bins(df, col, 10)
 
@@ -343,6 +344,103 @@ def fe(df, df_2):
     df['NAME_FAMILY_STATUS_IS_MARRIED'] = df['NAME_FAMILY_STATUS'].map({'Civilmarriage':1, 'Married':1, 'Separated':0, 'Single/notmarried':0,'Unknown':0, 'Widow':0})
     df['NAME_INCOME_TYPE_IS_WORKING'] = df['NAME_INCOME_TYPE'].map({'Businessman':0,'Commercialassociate':0,'Maternityleave':0, 'Pensioner':0,'Stateservant':1, 'Student':0,'Unemployed':0, 'Working':1})
     df['NAME_EDUCATION_TYPE_IS_WELL_EDUCATED'] = df['NAME_EDUCATION_TYPE'].map({'Academicdegree':1,'Highereducation':1,'Incompletehigher':1,'Lowersecondary':0,'Secondary/secondaryspecial':0})
+
+
+
+    # feature interactions
+    df['annuity_income_percentage'] = df['AMT_ANNUITY'] / df['AMT_INCOME_TOTAL']
+    df['car_to_birth_ratio'] = df['OWN_CAR_AGE'] / df['DAYS_BIRTH']
+    df['car_to_employ_ratio'] = df['OWN_CAR_AGE'] / df['DAYS_EMPLOYED']
+    df['children_ratio'] = df['CNT_CHILDREN'] / df['CNT_FAM_MEMBERS']
+    df['credit_to_annuity_ratio'] = df['AMT_CREDIT'] / df['AMT_ANNUITY']
+    df['credit_to_goods_ratio'] = df['AMT_CREDIT'] / df['AMT_GOODS_PRICE']
+    df['credit_to_income_ratio'] = df['AMT_CREDIT'] / df['AMT_INCOME_TOTAL']
+    df['days_employed_percentage'] = df['DAYS_EMPLOYED'] / df['DAYS_BIRTH']
+    df['income_credit_percentage'] = df['AMT_INCOME_TOTAL'] / df['AMT_CREDIT']
+    df['income_per_child'] = df['AMT_INCOME_TOTAL'] / (1 + df['CNT_CHILDREN'])
+    df['income_per_person'] = df['AMT_INCOME_TOTAL'] / df['CNT_FAM_MEMBERS']
+    df['payment_rate'] = df['AMT_ANNUITY'] / df['AMT_CREDIT']
+    df['phone_to_birth_ratio'] = df['DAYS_LAST_PHONE_CHANGE'] / df['DAYS_BIRTH']
+    df['phone_to_employ_ratio'] = df['DAYS_LAST_PHONE_CHANGE'] / df['DAYS_EMPLOYED']
+
+    # External sources# Exter
+    df['external_sources_weighted'] = df.EXT_SOURCE_1 * 2 + df.EXT_SOURCE_2 * 3 + df.EXT_SOURCE_3 * 4
+    for function_name in ['min', 'max', 'sum', 'mean', 'nanmedian']:
+        df['external_sources_{}'.format(function_name)] = eval('np.{}'.format(function_name))(
+            df[['EXT_SOURCE_1', 'EXT_SOURCE_2', 'EXT_SOURCE_3']], axis=1)
+
+    AGGREGATION_RECIPIES = [
+        (['CODE_GENDER', 'NAME_EDUCATION_TYPE'], [('AMT_ANNUITY', 'max'),
+                                                  ('AMT_CREDIT', 'max'),
+                                                  ('EXT_SOURCE_1', 'mean'),
+                                                  ('EXT_SOURCE_2', 'mean'),
+                                                  ('OWN_CAR_AGE', 'max'),
+                                                  ('OWN_CAR_AGE', 'sum')]),
+        (['CODE_GENDER', 'ORGANIZATION_TYPE'], [('AMT_ANNUITY', 'mean'),
+                                                ('AMT_INCOME_TOTAL', 'mean'),
+                                                ('DAYS_REGISTRATION', 'mean'),
+                                                ('EXT_SOURCE_1', 'mean')]),
+        (['CODE_GENDER', 'REG_CITY_NOT_WORK_CITY'], [('AMT_ANNUITY', 'mean'),
+                                                     ('CNT_CHILDREN', 'mean'),
+                                                     ('DAYS_ID_PUBLISH', 'mean')]),
+        (['CODE_GENDER', 'NAME_EDUCATION_TYPE', 'OCCUPATION_TYPE', 'REG_CITY_NOT_WORK_CITY'], [('EXT_SOURCE_1', 'mean'),
+                                                                                               ('EXT_SOURCE_2',
+                                                                                                'mean')]),
+        (['NAME_EDUCATION_TYPE', 'OCCUPATION_TYPE'], [('AMT_CREDIT', 'mean'),
+                                                      ('AMT_REQ_CREDIT_BUREAU_YEAR', 'mean'),
+                                                      ('APARTMENTS_AVG', 'mean'),
+                                                      ('BASEMENTAREA_AVG', 'mean'),
+                                                      ('EXT_SOURCE_1', 'mean'),
+                                                      ('EXT_SOURCE_2', 'mean'),
+                                                      ('EXT_SOURCE_3', 'mean'),
+                                                      ('NONLIVINGAREA_AVG', 'mean'),
+                                                      ('OWN_CAR_AGE', 'mean'),
+                                                      ('YEARS_BUILD_AVG', 'mean')]),
+        (['NAME_EDUCATION_TYPE', 'OCCUPATION_TYPE', 'REG_CITY_NOT_WORK_CITY'], [('ELEVATORS_AVG', 'mean'),
+                                                                                ('EXT_SOURCE_1', 'mean')]),
+        (['OCCUPATION_TYPE'], [('AMT_ANNUITY', 'mean'),
+                               ('CNT_CHILDREN', 'mean'),
+                               ('CNT_FAM_MEMBERS', 'mean'),
+                               ('DAYS_BIRTH', 'mean'),
+                               ('DAYS_EMPLOYED', 'mean'),
+                               ('DAYS_ID_PUBLISH', 'mean'),
+                               ('DAYS_REGISTRATION', 'mean'),
+                               ('EXT_SOURCE_1', 'mean'),
+                               ('EXT_SOURCE_2', 'mean'),
+                               ('EXT_SOURCE_3', 'mean')]),
+    ]
+
+    groupby_aggregate_names = []
+    for groupby_cols, specs in tqdm(AGGREGATION_RECIPIES):
+        group_object = df.groupby(groupby_cols)
+        for select, agg in tqdm(specs):
+            groupby_aggregate_name = '{}_{}_{}'.format('_'.join(groupby_cols), agg, select)
+            df = df.merge(group_object[select]
+                        .agg(agg)
+                        .reset_index()
+                        .rename(index=str,
+                                columns={select: groupby_aggregate_name})
+                        [groupby_cols + [groupby_aggregate_name]],
+                        on=groupby_cols,
+                        how='left')
+            groupby_aggregate_names.append(groupby_aggregate_name)
+
+    diff_feature_names = []
+    for groupby_cols, specs in tqdm(AGGREGATION_RECIPIES):
+        for select, agg in tqdm(specs):
+            if agg in ['mean', 'median', 'max', 'min']:
+                groupby_aggregate_name = '{}_{}_{}'.format('_'.join(groupby_cols), agg, select)
+                diff_name = '{}_diff'.format(groupby_aggregate_name)
+                abs_diff_name = '{}_abs_diff'.format(groupby_aggregate_name)
+
+                df[diff_name] = df[select] - df[groupby_aggregate_name]
+                df[abs_diff_name] = np.abs(df[select] - df[groupby_aggregate_name])
+
+                diff_feature_names.append(diff_name)
+                diff_feature_names.append(abs_diff_name)
+
+
+
 
     df = util.handle_categoricals(df, pd.concat([df, df_2],axis=0))
 
@@ -370,6 +468,8 @@ def featureSelection(df, df_test):
     return df, df_test
 
 def run(df, df_test, df_all, train=True):
+
+
     df_raw= df
     df_test_raw= df_test
     X_train, X_test, y_train, y_test = util.gen_train_test_split(df)
@@ -405,8 +505,9 @@ def make_subset(df, subset=0):
 
 
 def prep():
-    df_application = pd.read_csv('application_train.csv')
-    df_application_test = pd.read_csv('application_test.csv')
+    # load data
+    df_application, df_application_test = load_data()
+
     df_application = df_application
     df_application_test = df_application_test
     # Make Subset :
@@ -422,29 +523,92 @@ def prep():
     df_application = fe(df_application, df_application_test)
     df_application_test = fe(df_application_test, df_application)
     print("{},{}".format(df_application.shape, df_application_test.shape))
+
+    df_application =  get_agg_numerics_data(df_application, pd.read_csv('application_train.csv'),['SK_ID_CURR'])
+    df_application_test = get_agg_numerics_data(df_application_test, pd.read_csv('application_test.csv'), ['SK_ID_CURR'])
+    print("{},{}".format(df_application.shape, df_application_test.shape))
+
+    df_application =  get_agg_numerics_data(df_application, pd.read_csv('installments_payments.csv'),['SK_ID_CURR'])
+    df_application_test = get_agg_numerics_data(df_application_test, pd.read_csv('installments_payments.csv'), ['SK_ID_CURR'])
+    print("{},{}".format(df_application.shape, df_application_test.shape))
+
+    df_application =  get_agg_numerics_data(df_application, pd.read_csv('bureau.csv'),['SK_ID_CURR'])
+    df_application_test = get_agg_numerics_data(df_application_test, pd.read_csv('bureau.csv'), ['SK_ID_CURR'])
+    print("{},{}".format(df_application.shape, df_application_test.shape))
+
+    # df_application = get_agg_numerics_data(df_application, pd.read_csv('bureau_balance.csv'), ['SK_ID_CURR'])
+    # print("{},{}".format(df_application.shape, df_application_test.shape))
+
+    df_application = get_agg_numerics_data(df_application, pd.read_csv('POS_CASH_balance.csv'), ['SK_ID_CURR'])
+    df_application_test = get_agg_numerics_data(df_application_test, pd.read_csv('POS_CASH_balance.csv'), ['SK_ID_CURR'])
+    print("{},{}".format(df_application.shape, df_application_test.shape))
+
+    df_application = get_agg_numerics_data(df_application, pd.read_csv('previous_application.csv'), ['SK_ID_CURR'])
+    df_application_test = get_agg_numerics_data(df_application_test, pd.read_csv('previous_application.csv'), ['SK_ID_CURR'])
+    print("{},{}".format(df_application.shape, df_application_test.shape))
+
+    df_application = get_agg_numerics_data(df_application, pd.read_csv('POS_CASH_balance.csv'), ['SK_ID_CURR'])
+    df_application_test = get_agg_numerics_data(df_application_test, pd.read_csv('POS_CASH_balance.csv'), ['SK_ID_CURR'])
+    print("{},{}".format(df_application.shape, df_application_test.shape))
+
     # Align Datasets
     df_application = align_datasets(df_application,df_application_test)
     df_application = align_datasets(df_application_test,df_application)
     print("{},{}".format(df_application.shape, df_application_test.shape))
-
-    # # Clean up data
-    # df_application = clean_up(df_application)
-    # df_application_test =  clean_up(df_application_test)
-    # print("{},{}".format(df_application.shape, df_application_test.shape))
 
     # Checkpoint Save
     df_application.to_csv('application_processed.csv')
     df_application_test.to_csv('application_test_processed.csv')
     print("{},{}".format(df_application.shape, df_application_test.shape))
 
+def get_agg_numerics_data(df, additional_data, exclude_cols):
+    numeric_columns = []
+    for col in additional_data.columns:
+        if str(additional_data[col].dtype) not in ['object','category'] and col not in exclude_cols:
+            numeric_columns.append(col)
+    AGGREGATION_RECIPIES = []
+    for agg in ['mean', 'min', 'max', 'sum', 'var']:
+        for select in numeric_columns:
+            AGGREGATION_RECIPIES.append((select, agg))
+    AGGREGATION_RECIPIES = [(['SK_ID_CURR'], AGGREGATION_RECIPIES)]
 
+    groupby_aggregate_names = []
+    for groupby_cols, specs in tqdm(AGGREGATION_RECIPIES):
+        group_object = additional_data.groupby(groupby_cols)
+        for select, agg in tqdm(specs):
+            groupby_aggregate_name = '{}_{}_{}'.format('_'.join(groupby_cols), agg, select)
+            df = df.merge(group_object[select]
+                                  .agg(agg)
+                                  .reset_index()
+                                  .rename(index=str,
+                                          columns={select: groupby_aggregate_name})
+                                  [groupby_cols + [groupby_aggregate_name]],
+                                  on=groupby_cols,
+                                  how='left')
+            groupby_aggregate_names.append(groupby_aggregate_name)
+    return df
+
+
+def load_data():
+    df_application = pd.read_csv('application_train.csv')
+    df_application_test = pd.read_csv('application_test.csv')
+    # df_bureau_balance = pd.read_csv('bureau_balance.csv')
+    # df_installment_payments = pd.read_csv('installments_payments.csv')
+    # df_bureau = pd.read_csv('bureau.csv')
+    # df_cash_balance = pd.read_csv('POS_CASH_balance.csv')
+    # df_prev_application = pd.read_csv('previous_application.csv')
+    # return df_application,df_application_test, df_bureau, df_bureau_balance, df_cash_balance, df_installment_payments, df_prev_application
+    return df_application, df_application_test
     # Feature Selection
     #df_application, df_application_test = featureSelection(df_application, df_application_test)
 #prep()
 #exit()
-df_application = pd.read_csv('application_processed.csv')
-df_application_test = pd.read_csv('application_test_processed.csv')
-all_data = pd.concat([df_application, df_application_test],axis=0)
+
+
 
 prep()
-#run(df_application,df_application_test,all_data, True)
+
+#df = pd.read_csv('application_processed.csv')
+#df_test = pd.read_csv('application_test_processed.csv')
+#all_data = pd.concat([df, df_test],axis=0)
+#run(df,df_test,all_data, True)
