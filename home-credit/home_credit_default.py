@@ -547,19 +547,20 @@ def prep():
 
     #parallel_funcs.append(get_agg_numerics_data(df_application, pd.read_csv('application_train.csv'),['SK_ID_CURR'],True))
     #parallel_funcs.append(get_agg_numerics_data(df_application_test, pd.read_csv('application_test.csv'), ['SK_ID_CURR'],False))
-    parallel_funcs.append(get_agg_numerics_data(df_application, pd.read_csv('installments_payments.csv'),['SK_ID_CURR'],True))
-    parallel_funcs.append(get_agg_numerics_data(df_application_test, pd.read_csv('installments_payments.csv'), ['SK_ID_CURR'],False))
-    parallel_funcs.append(get_agg_numerics_data(df_application, pd.read_csv('bureau.csv'),['SK_ID_CURR'],True))
-    parallel_funcs.append(get_agg_numerics_data(df_application_test, pd.read_csv('bureau.csv'), ['SK_ID_CURR'],False))
-    parallel_funcs.append(get_agg_numerics_data(df_application, pd.read_csv('POS_CASH_balance.csv'), ['SK_ID_CURR'],True))
-    parallel_funcs.append(get_agg_numerics_data(df_application_test, pd.read_csv('POS_CASH_balance.csv'), ['SK_ID_CURR'],False))
-    parallel_funcs.append(get_agg_numerics_data(df_application, pd.read_csv('previous_application.csv'), ['SK_ID_CURR'],True))
-    parallel_funcs.append(get_agg_numerics_data(df_application_test, pd.read_csv('previous_application.csv'), ['SK_ID_CURR'],False))
-    parallel_funcs.append(get_agg_numerics_data(df_application, pd.read_csv('POS_CASH_balance.csv'), ['SK_ID_CURR'],True))
-    parallel_funcs.append(get_agg_numerics_data(df_application_test, pd.read_csv('POS_CASH_balance.csv'), ['SK_ID_CURR'],False))
-
+    print(1)
+    parallel_funcs.append({'function1': get_agg_numerics_data, 'args1':[df_application, pd.read_csv('installments_payments.csv'),['SK_ID_CURR'],True]})
+    parallel_funcs.append({'function1': get_agg_numerics_data, 'args1': [df_application_test, pd.read_csv('installments_payments.csv'), ['SK_ID_CURR'],False]})
+    parallel_funcs.append({'function1': get_agg_numerics_data, 'args1':[df_application, pd.read_csv('bureau.csv'),['SK_ID_CURR'],True]})
+    parallel_funcs.append({'function1': get_agg_numerics_data, 'args1':[df_application_test, pd.read_csv('bureau.csv'), ['SK_ID_CURR'],False]})
+    parallel_funcs.append({'function1': get_agg_numerics_data, 'args1':[df_application, pd.read_csv('POS_CASH_balance.csv'), ['SK_ID_CURR'],True]})
+    parallel_funcs.append({'function1': get_agg_numerics_data, 'args1':[df_application_test, pd.read_csv('POS_CASH_balance.csv'), ['SK_ID_CURR'],False]})
+    parallel_funcs.append({'function1': get_agg_numerics_data, 'args1':[df_application, pd.read_csv('previous_application.csv'), ['SK_ID_CURR'],True]})
+    parallel_funcs.append({'function1': get_agg_numerics_data, 'args1':[df_application_test, pd.read_csv('previous_application.csv'), ['SK_ID_CURR'],False]})
+    parallel_funcs.append({'function1': get_agg_numerics_data, 'args1':[df_application, pd.read_csv('POS_CASH_balance.csv'), ['SK_ID_CURR'],True]})
+    parallel_funcs.append({'function1': get_agg_numerics_data, 'args1':[df_application_test, pd.read_csv('POS_CASH_balance.csv'), ['SK_ID_CURR'],False]})
+    print(2)
     runInParallel(parallel_funcs)
-
+    print(3)
     arr_in_process_cols.append(df_application)
     arr_in_process_cols_test.append(df_application_test)
 
@@ -569,7 +570,6 @@ def prep():
     df_application = align_datasets(df_application,df_application_test)
     df_application_test = align_datasets(df_application_test,df_application)
     print("{},{}".format(df_application.shape, df_application_test.shape))
-    print(df_application['TARGET'].unique())
 
     # Checkpoint Save
     df_application.to_csv('application_processed.csv',index = False)
@@ -577,10 +577,10 @@ def prep():
     print("{},{}".format(df_application.shape, df_application_test.shape))
 
 
-def runInParallel(*fns):
+def runInParallel(fns):
   proc = []
   for fn in fns:
-    p = Process(target=fn)
+    p = Process(target=fn['function1'],args=fn['args1'])
     p.start()
     proc.append(p)
   for p in proc:
