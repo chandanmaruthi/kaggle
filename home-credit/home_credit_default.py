@@ -416,7 +416,7 @@ def fe(df, df_2):
     groupby_aggregate_names = []
     for groupby_cols, specs in tqdm(AGGREGATION_RECIPIES):
         group_object = df.groupby(groupby_cols)
-        for select, agg in tqdm(specs):
+        for select, agg in specs:
             groupby_aggregate_name = '{}_{}_{}'.format('_'.join(groupby_cols), agg, select)
             df = df.merge(group_object[select]
                         .agg(agg)
@@ -429,8 +429,8 @@ def fe(df, df_2):
             groupby_aggregate_names.append(groupby_aggregate_name)
 
     diff_feature_names = []
-    for groupby_cols, specs in tqdm(AGGREGATION_RECIPIES):
-        for select, agg in tqdm(specs):
+    for groupby_cols, specs in AGGREGATION_RECIPIES:
+        for select, agg in specs:
             if agg in ['mean', 'median', 'max', 'min']:
                 groupby_aggregate_name = '{}_{}_{}'.format('_'.join(groupby_cols), agg, select)
                 diff_name = '{}_diff'.format(groupby_aggregate_name)
@@ -528,27 +528,25 @@ def prep():
     df_application = df_application
     df_application_test = df_application_test
     # Make Subset :
-    subset = 0
+    subset = 1000
     df_application = make_subset(df_application, subset)
     df_application_test = make_subset(df_application_test, subset)
     print("{},{}".format(df_application.shape, df_application_test.shape))
-    print(df_application['TARGET'].unique())
 
     # Clean up data
     df_application = clean_up(df_application)
     df_application_test =  clean_up(df_application_test)
     print("{},{}".format(df_application.shape, df_application_test.shape))
-    print(df_application['TARGET'].unique())
     # Feature Engineer
-    df_application = fe(df_application, df_application_test)
-    df_application_test = fe(df_application_test, df_application)
-    print("{},{}".format(df_application.shape, df_application_test.shape))
-    print(df_application['TARGET'].unique())
+    # df_application = fe(df_application, df_application_test)
+    # df_application_test = fe(df_application_test, df_application)
+    # print("{},{}".format(df_application.shape, df_application_test.shape))
+    # print(df_application['TARGET'].unique())
 
     parallel_funcs =[]
 
-    parallel_funcs.append(get_agg_numerics_data(df_application, pd.read_csv('application_train.csv'),['SK_ID_CURR'],True))
-    parallel_funcs.append(get_agg_numerics_data(df_application_test, pd.read_csv('application_test.csv'), ['SK_ID_CURR'],False))
+    #parallel_funcs.append(get_agg_numerics_data(df_application, pd.read_csv('application_train.csv'),['SK_ID_CURR'],True))
+    #parallel_funcs.append(get_agg_numerics_data(df_application_test, pd.read_csv('application_test.csv'), ['SK_ID_CURR'],False))
     parallel_funcs.append(get_agg_numerics_data(df_application, pd.read_csv('installments_payments.csv'),['SK_ID_CURR'],True))
     parallel_funcs.append(get_agg_numerics_data(df_application_test, pd.read_csv('installments_payments.csv'), ['SK_ID_CURR'],False))
     parallel_funcs.append(get_agg_numerics_data(df_application, pd.read_csv('bureau.csv'),['SK_ID_CURR'],True))
@@ -564,8 +562,9 @@ def prep():
 
     arr_in_process_cols.append(df_application)
     arr_in_process_cols_test.append(df_application_test)
-    df_application = pd.concat(arr_in_process_cols, axis=0)
-    df_application_test = pd.concat(arr_in_process_cols_test, axis=0)
+
+    df_application = pd.concat(arr_in_process_cols, axis=1)
+    df_application_test = pd.concat(arr_in_process_cols_test, axis=1)
     # Align Datasets
     df_application = align_datasets(df_application,df_application_test)
     df_application_test = align_datasets(df_application_test,df_application)
@@ -587,7 +586,6 @@ def runInParallel(*fns):
   for p in proc:
     p.join()
 
-#runInParallel(func1, func2)
 
 def get_agg_numerics_data(df, additional_data, exclude_cols, train= True):
     numeric_columns = []
@@ -601,9 +599,9 @@ def get_agg_numerics_data(df, additional_data, exclude_cols, train= True):
     AGGREGATION_RECIPIES = [(['SK_ID_CURR'], AGGREGATION_RECIPIES)]
 
     groupby_aggregate_names = []
-    for groupby_cols, specs in tqdm(AGGREGATION_RECIPIES):
+    for groupby_cols, specs in AGGREGATION_RECIPIES:
         group_object = additional_data.groupby(groupby_cols)
-        for select, agg in tqdm(specs):
+        for select, agg in specs:
             groupby_aggregate_name = '{}_{}_{}'.format('_'.join(groupby_cols), agg, select)
             df = df.merge(group_object[select]
                                   .agg(agg)
@@ -618,7 +616,7 @@ def get_agg_numerics_data(df, additional_data, exclude_cols, train= True):
         arr_in_process_cols.append(df[groupby_aggregate_names])
     else:
         arr_in_process_cols_test.append(df[groupby_aggregate_names])
-
+    print("{}".format(df.shape))
 def load_data():
     df_application = pd.read_csv('application_train.csv')
     df_application_test = pd.read_csv('application_test.csv')
