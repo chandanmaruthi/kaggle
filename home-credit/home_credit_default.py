@@ -32,14 +32,14 @@ class util:
         oh_count = 0
         oh_df = pd.DataFrame()
         # Iterate through the columns
-        for col in tqdm(df):
+        for col in df:
             le = LabelEncoder()
             if col == 'TARGET':
                 continue
             all_df = pd.DataFrame()
             all_df[col] = all_data[col]
 
-            if df[col].dtype == 'object':
+            if str(df[col].dtype) in ['object','category']:
                 # If 2 or fewer unique categories
                 if len(list(df[col].unique())) <= 2:
                     #print('le :' + col)
@@ -77,7 +77,7 @@ class util:
             #print(df[col].dtype)
             if str(df[col].dtype) == 'object':
                 #df[col].add_categories(['un_specified'])
-                df[col] = df[col].fillna('un_specified')
+                df[col] = df[col].fillna(99999)
             elif str(df[col].dtype) == 'category':
                 #print(str(df[col].dtype))
                 df[col] = df[col].cat.add_categories([99999]).fillna(99999)
@@ -367,81 +367,81 @@ def fe(df, df_2):
     df['phone_to_birth_ratio'] = df['DAYS_LAST_PHONE_CHANGE'] / df['DAYS_BIRTH']
     df['phone_to_employ_ratio'] = df['DAYS_LAST_PHONE_CHANGE'] / df['DAYS_EMPLOYED']
 
-    # External sources# Exter
-    df['external_sources_weighted'] = df.EXT_SOURCE_1 * 2 + df.EXT_SOURCE_2 * 3 + df.EXT_SOURCE_3 * 4
-    for function_name in ['min', 'max', 'sum', 'mean', 'nanmedian']:
-        df['external_sources_{}'.format(function_name)] = eval('np.{}'.format(function_name))(
-            df[['EXT_SOURCE_1', 'EXT_SOURCE_2', 'EXT_SOURCE_3']], axis=1)
+    # # External sources# Exter
+    # df['external_sources_weighted'] = df.EXT_SOURCE_1 * 2 + df.EXT_SOURCE_2 * 3 + df.EXT_SOURCE_3 * 4
+    # for function_name in ['min', 'max', 'sum', 'mean', 'nanmedian']:
+    #     df['external_sources_{}'.format(function_name)] = eval('np.{}'.format(function_name))(
+    #         df[['EXT_SOURCE_1', 'EXT_SOURCE_2', 'EXT_SOURCE_3']], axis=1)
 
-    AGGREGATION_RECIPIES = [
-        (['CODE_GENDER', 'NAME_EDUCATION_TYPE'], [('AMT_ANNUITY', 'max'),
-                                                  ('AMT_CREDIT', 'max'),
-                                                  ('EXT_SOURCE_1', 'mean'),
-                                                  ('EXT_SOURCE_2', 'mean'),
-                                                  ('OWN_CAR_AGE', 'max'),
-                                                  ('OWN_CAR_AGE', 'sum')]),
-        (['CODE_GENDER', 'ORGANIZATION_TYPE'], [('AMT_ANNUITY', 'mean'),
-                                                ('AMT_INCOME_TOTAL', 'mean'),
-                                                ('DAYS_REGISTRATION', 'mean'),
-                                                ('EXT_SOURCE_1', 'mean')]),
-        (['CODE_GENDER', 'REG_CITY_NOT_WORK_CITY'], [('AMT_ANNUITY', 'mean'),
-                                                     ('CNT_CHILDREN', 'mean'),
-                                                     ('DAYS_ID_PUBLISH', 'mean')]),
-        (['CODE_GENDER', 'NAME_EDUCATION_TYPE', 'OCCUPATION_TYPE', 'REG_CITY_NOT_WORK_CITY'], [('EXT_SOURCE_1', 'mean'),
-                                                                                               ('EXT_SOURCE_2',
-                                                                                                'mean')]),
-        (['NAME_EDUCATION_TYPE', 'OCCUPATION_TYPE'], [('AMT_CREDIT', 'mean'),
-                                                      ('AMT_REQ_CREDIT_BUREAU_YEAR', 'mean'),
-                                                      ('APARTMENTS_AVG', 'mean'),
-                                                      ('BASEMENTAREA_AVG', 'mean'),
-                                                      ('EXT_SOURCE_1', 'mean'),
-                                                      ('EXT_SOURCE_2', 'mean'),
-                                                      ('EXT_SOURCE_3', 'mean'),
-                                                      ('NONLIVINGAREA_AVG', 'mean'),
-                                                      ('OWN_CAR_AGE', 'mean'),
-                                                      ('YEARS_BUILD_AVG', 'mean')]),
-        (['NAME_EDUCATION_TYPE', 'OCCUPATION_TYPE', 'REG_CITY_NOT_WORK_CITY'], [('ELEVATORS_AVG', 'mean'),
-                                                                                ('EXT_SOURCE_1', 'mean')]),
-        (['OCCUPATION_TYPE'], [('AMT_ANNUITY', 'mean'),
-                               ('CNT_CHILDREN', 'mean'),
-                               ('CNT_FAM_MEMBERS', 'mean'),
-                               ('DAYS_BIRTH', 'mean'),
-                               ('DAYS_EMPLOYED', 'mean'),
-                               ('DAYS_ID_PUBLISH', 'mean'),
-                               ('DAYS_REGISTRATION', 'mean'),
-                               ('EXT_SOURCE_1', 'mean'),
-                               ('EXT_SOURCE_2', 'mean'),
-                               ('EXT_SOURCE_3', 'mean')]),
-    ]
+    # AGGREGATION_RECIPIES = [
+    #     (['CODE_GENDER', 'NAME_EDUCATION_TYPE'], [('AMT_ANNUITY', 'max'),
+    #                                               ('AMT_CREDIT', 'max'),
+    #                                               ('EXT_SOURCE_1', 'mean'),
+    #                                               ('EXT_SOURCE_2', 'mean'),
+    #                                               ('OWN_CAR_AGE', 'max'),
+    #                                               ('OWN_CAR_AGE', 'sum')]),
+    #     (['CODE_GENDER', 'ORGANIZATION_TYPE'], [('AMT_ANNUITY', 'mean'),
+    #                                             ('AMT_INCOME_TOTAL', 'mean'),
+    #                                             ('DAYS_REGISTRATION', 'mean'),
+    #                                             ('EXT_SOURCE_1', 'mean')]),
+    #     (['CODE_GENDER', 'REG_CITY_NOT_WORK_CITY'], [('AMT_ANNUITY', 'mean'),
+    #                                                  ('CNT_CHILDREN', 'mean'),
+    #                                                  ('DAYS_ID_PUBLISH', 'mean')]),
+    #     (['CODE_GENDER', 'NAME_EDUCATION_TYPE', 'OCCUPATION_TYPE', 'REG_CITY_NOT_WORK_CITY'], [('EXT_SOURCE_1', 'mean'),
+    #                                                                                            ('EXT_SOURCE_2',
+    #                                                                                             'mean')]),
+    #     (['NAME_EDUCATION_TYPE', 'OCCUPATION_TYPE'], [('AMT_CREDIT', 'mean'),
+    #                                                   ('AMT_REQ_CREDIT_BUREAU_YEAR', 'mean'),
+    #                                                   ('APARTMENTS_AVG', 'mean'),
+    #                                                   ('BASEMENTAREA_AVG', 'mean'),
+    #                                                   ('EXT_SOURCE_1', 'mean'),
+    #                                                   ('EXT_SOURCE_2', 'mean'),
+    #                                                   ('EXT_SOURCE_3', 'mean'),
+    #                                                   ('NONLIVINGAREA_AVG', 'mean'),
+    #                                                   ('OWN_CAR_AGE', 'mean'),
+    #                                                   ('YEARS_BUILD_AVG', 'mean')]),
+    #     (['NAME_EDUCATION_TYPE', 'OCCUPATION_TYPE', 'REG_CITY_NOT_WORK_CITY'], [('ELEVATORS_AVG', 'mean'),
+    #                                                                             ('EXT_SOURCE_1', 'mean')]),
+    #     (['OCCUPATION_TYPE'], [('AMT_ANNUITY', 'mean'),
+    #                            ('CNT_CHILDREN', 'mean'),
+    #                            ('CNT_FAM_MEMBERS', 'mean'),
+    #                            ('DAYS_BIRTH', 'mean'),
+    #                            ('DAYS_EMPLOYED', 'mean'),
+    #                            ('DAYS_ID_PUBLISH', 'mean'),
+    #                            ('DAYS_REGISTRATION', 'mean'),
+    #                            ('EXT_SOURCE_1', 'mean'),
+    #                            ('EXT_SOURCE_2', 'mean'),
+    #                            ('EXT_SOURCE_3', 'mean')]),
+    # ]
 
-    groupby_aggregate_names = []
-    for groupby_cols, specs in tqdm(AGGREGATION_RECIPIES):
-        group_object = df.groupby(groupby_cols)
-        for select, agg in specs:
-            groupby_aggregate_name = '{}_{}_{}'.format('_'.join(groupby_cols), agg, select)
-            df = df.merge(group_object[select]
-                        .agg(agg)
-                        .reset_index()
-                        .rename(index=str,
-                                columns={select: groupby_aggregate_name})
-                        [groupby_cols + [groupby_aggregate_name]],
-                        on=groupby_cols,
-                        how='left')
-            groupby_aggregate_names.append(groupby_aggregate_name)
-
-    diff_feature_names = []
-    for groupby_cols, specs in AGGREGATION_RECIPIES:
-        for select, agg in specs:
-            if agg in ['mean', 'median', 'max', 'min']:
-                groupby_aggregate_name = '{}_{}_{}'.format('_'.join(groupby_cols), agg, select)
-                diff_name = '{}_diff'.format(groupby_aggregate_name)
-                abs_diff_name = '{}_abs_diff'.format(groupby_aggregate_name)
-
-                df[diff_name] = df[select] - df[groupby_aggregate_name]
-                df[abs_diff_name] = np.abs(df[select] - df[groupby_aggregate_name])
-
-                diff_feature_names.append(diff_name)
-                diff_feature_names.append(abs_diff_name)
+    # groupby_aggregate_names = []
+    # for groupby_cols, specs in AGGREGATION_RECIPIES:
+    #     group_object = df.groupby(groupby_cols)
+    #     for select, agg in specs:
+    #         groupby_aggregate_name = '{}_{}_{}'.format('_'.join(groupby_cols), agg, select)
+    #         df = df.merge(group_object[select]
+    #                     .agg(agg)
+    #                     .reset_index()
+    #                     .rename(index=str,
+    #                             columns={select: groupby_aggregate_name})
+    #                     [groupby_cols + [groupby_aggregate_name]],
+    #                     on=groupby_cols,
+    #                     how='left')
+    #         groupby_aggregate_names.append(groupby_aggregate_name)
+    #
+    # diff_feature_names = []
+    # for groupby_cols, specs in AGGREGATION_RECIPIES:
+    #     for select, agg in specs:
+    #         if agg in ['mean', 'median', 'max', 'min']:
+    #             groupby_aggregate_name = '{}_{}_{}'.format('_'.join(groupby_cols), agg, select)
+    #             diff_name = '{}_diff'.format(groupby_aggregate_name)
+    #             abs_diff_name = '{}_abs_diff'.format(groupby_aggregate_name)
+    #
+    #             df[diff_name] = df[select] - df[groupby_aggregate_name]
+    #             df[abs_diff_name] = np.abs(df[select] - df[groupby_aggregate_name])
+    #
+    #             diff_feature_names.append(diff_name)
+    #             diff_feature_names.append(abs_diff_name)
 
 
 
@@ -539,11 +539,11 @@ def prep():
     df_application = clean_up(df_application)
     df_application_test =  clean_up(df_application_test)
     print("{},{}".format(df_application.shape, df_application_test.shape))
-    # Feature Engineer
-    df_application = fe(df_application, df_application_test)
-    df_application_test = fe(df_application_test, df_application)
-    print("{},{}".format(df_application.shape, df_application_test.shape))
-    print(df_application['TARGET'].unique())
+    # # Feature Engineer
+    #df_application = fe(df_application, df_application_test)
+    #df_application_test = fe(df_application_test, df_application)
+    # print("{},{}".format(df_application.shape, df_application_test.shape))
+    # print(df_application['TARGET'].unique())
 
     parallel_funcs =[]
     # Define an output queue
@@ -552,7 +552,7 @@ def prep():
     parallel_funcs.append({'id':2, 'function1': get_agg_numerics_data, 'args1':[df_application_test, df_application, ['SK_ID_CURR'], output,False]})
     parallel_funcs.append({'id':3, 'function1': get_agg_numerics_data, 'args1':[df_application, pd.read_csv('installments_payments.csv'),['SK_ID_CURR'], output,True]})
     parallel_funcs.append({'id':4, 'function1': get_agg_numerics_data, 'args1': [df_application_test, pd.read_csv('installments_payments.csv'), ['SK_ID_CURR'], output,False]})
-    parallel_funcs.append({'id':5, 'functi on1': get_agg_numerics_data, 'args1':[df_application, pd.read_csv('bureau.csv'),['SK_ID_CURR'], output,True]})
+    parallel_funcs.append({'id':5, 'function1': get_agg_numerics_data, 'args1':[df_application, pd.read_csv('bureau.csv'),['SK_ID_CURR'], output,True]})
     parallel_funcs.append({'id':6, 'function1': get_agg_numerics_data, 'args1':[df_application_test, pd.read_csv('bureau.csv'), ['SK_ID_CURR'], output,False]})
     parallel_funcs.append({'id':7, 'function1': get_agg_numerics_data, 'args1':[df_application, pd.read_csv('POS_CASH_balance.csv'), ['SK_ID_CURR'], output,True]})
     parallel_funcs.append({'id':8, 'function1': get_agg_numerics_data, 'args1':[df_application_test, pd.read_csv('POS_CASH_balance.csv'), ['SK_ID_CURR'], output,False]})
