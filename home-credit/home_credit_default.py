@@ -14,6 +14,7 @@ from sklearn.ensemble import ExtraTreesClassifier
 import warnings
 from tqdm import tqdm
 from multiprocessing import Process
+import multiprocessing as mp
 
 
 warnings.filterwarnings("ignore")
@@ -521,6 +522,7 @@ df_application_test = None
 arr_in_process_cols=[]
 arr_in_process_cols_test=[]
 
+output = mp.Queue()
 def prep():
     # load data
     df_application, df_application_test = load_data()
@@ -538,34 +540,45 @@ def prep():
     df_application_test =  clean_up(df_application_test)
     print("{},{}".format(df_application.shape, df_application_test.shape))
     # Feature Engineer
-    # df_application = fe(df_application, df_application_test)
-    # df_application_test = fe(df_application_test, df_application)
-    # print("{},{}".format(df_application.shape, df_application_test.shape))
-    # print(df_application['TARGET'].unique())
+    df_application = fe(df_application, df_application_test)
+    df_application_test = fe(df_application_test, df_application)
+    print("{},{}".format(df_application.shape, df_application_test.shape))
+    print(df_application['TARGET'].unique())
 
     parallel_funcs =[]
+    # Define an output queue
 
-    #parallel_funcs.append(get_agg_numerics_data(df_application, pd.read_csv('application_train.csv'),['SK_ID_CURR'],True))
-    #parallel_funcs.append(get_agg_numerics_data(df_application_test, pd.read_csv('application_test.csv'), ['SK_ID_CURR'],False))
-    print(1)
-    parallel_funcs.append({'function1': get_agg_numerics_data, 'args1':[df_application, pd.read_csv('installments_payments.csv'),['SK_ID_CURR'],True]})
-    parallel_funcs.append({'function1': get_agg_numerics_data, 'args1': [df_application_test, pd.read_csv('installments_payments.csv'), ['SK_ID_CURR'],False]})
-    parallel_funcs.append({'function1': get_agg_numerics_data, 'args1':[df_application, pd.read_csv('bureau.csv'),['SK_ID_CURR'],True]})
-    parallel_funcs.append({'function1': get_agg_numerics_data, 'args1':[df_application_test, pd.read_csv('bureau.csv'), ['SK_ID_CURR'],False]})
-    parallel_funcs.append({'function1': get_agg_numerics_data, 'args1':[df_application, pd.read_csv('POS_CASH_balance.csv'), ['SK_ID_CURR'],True]})
-    parallel_funcs.append({'function1': get_agg_numerics_data, 'args1':[df_application_test, pd.read_csv('POS_CASH_balance.csv'), ['SK_ID_CURR'],False]})
-    parallel_funcs.append({'function1': get_agg_numerics_data, 'args1':[df_application, pd.read_csv('previous_application.csv'), ['SK_ID_CURR'],True]})
-    parallel_funcs.append({'function1': get_agg_numerics_data, 'args1':[df_application_test, pd.read_csv('previous_application.csv'), ['SK_ID_CURR'],False]})
-    parallel_funcs.append({'function1': get_agg_numerics_data, 'args1':[df_application, pd.read_csv('POS_CASH_balance.csv'), ['SK_ID_CURR'],True]})
-    parallel_funcs.append({'function1': get_agg_numerics_data, 'args1':[df_application_test, pd.read_csv('POS_CASH_balance.csv'), ['SK_ID_CURR'],False]})
-    print(2)
-    runInParallel(parallel_funcs)
-    print(3)
+    parallel_funcs.append({'id':1, 'function1': get_agg_numerics_data, 'args1':[df_application, df_application,['SK_ID_CURR'], output,True]})
+    parallel_funcs.append({'id':2, 'function1': get_agg_numerics_data, 'args1':[df_application_test, df_application, ['SK_ID_CURR'], output,False]})
+    parallel_funcs.append({'id':3, 'function1': get_agg_numerics_data, 'args1':[df_application, pd.read_csv('installments_payments.csv'),['SK_ID_CURR'], output,True]})
+    parallel_funcs.append({'id':4, 'function1': get_agg_numerics_data, 'args1': [df_application_test, pd.read_csv('installments_payments.csv'), ['SK_ID_CURR'], output,False]})
+    parallel_funcs.append({'id':5, 'functi on1': get_agg_numerics_data, 'args1':[df_application, pd.read_csv('bureau.csv'),['SK_ID_CURR'], output,True]})
+    parallel_funcs.append({'id':6, 'function1': get_agg_numerics_data, 'args1':[df_application_test, pd.read_csv('bureau.csv'), ['SK_ID_CURR'], output,False]})
+    parallel_funcs.append({'id':7, 'function1': get_agg_numerics_data, 'args1':[df_application, pd.read_csv('POS_CASH_balance.csv'), ['SK_ID_CURR'], output,True]})
+    parallel_funcs.append({'id':8, 'function1': get_agg_numerics_data, 'args1':[df_application_test, pd.read_csv('POS_CASH_balance.csv'), ['SK_ID_CURR'], output,False]})
+    parallel_funcs.append({'id':9, 'function1': get_agg_numerics_data, 'args1':[df_application, pd.read_csv('previous_application.csv'), ['SK_ID_CURR'], output,True]})
+    parallel_funcs.append({'id':10, 'function1': get_agg_numerics_data, 'args1':[df_application_test, pd.read_csv('previous_application.csv'), ['SK_ID_CURR'],output,False]})
+    parallel_funcs.append({'id':11, 'function1': get_agg_numerics_data, 'args1':[df_application, pd.read_csv('POS_CASH_balance.csv'), ['SK_ID_CURR'],output,True]})
+    parallel_funcs.append({'id':12, 'function1': get_agg_numerics_data, 'args1':[df_application_test, pd.read_csv('POS_CASH_balance.csv'), ['SK_ID_CURR'],output,False]})
+
+    arr_in_process_cols = []
+    arr_in_process_cols_test = []
     arr_in_process_cols.append(df_application)
     arr_in_process_cols_test.append(df_application_test)
 
-    df_application = pd.concat(arr_in_process_cols, axis=1)
-    df_application_test = pd.concat(arr_in_process_cols_test, axis=1)
+    arr_in_process_cols_tmp, arr_in_process_cols_test_tmp = runInParallel(parallel_funcs)
+    print(3)
+
+    print(len(arr_in_process_cols))
+    print(len(arr_in_process_cols_test))
+
+    for df_tmp in arr_in_process_cols_tmp:
+        df_application = pd.concat([df_application, df_tmp],axis=1)
+        arr_in_process_cols.append(df_tmp)
+    for df_tmp in arr_in_process_cols_test_tmp:
+        df_application_test = pd.concat([df_application_test, df_tmp],axis=1)
+
+    print("{},{}".format(df_application.shape, df_application_test.shape))
     # Align Datasets
     df_application = align_datasets(df_application,df_application_test)
     df_application_test = align_datasets(df_application_test,df_application)
@@ -583,11 +596,24 @@ def runInParallel(fns):
     p = Process(target=fn['function1'],args=fn['args1'])
     p.start()
     proc.append(p)
+  b=[]
+  b_test=[]
+  for p in proc:
+    results = output.get()
+    #print(results)
+
+    a = results[0]
+    a_test =results[1]
+
+    b.append(a)
+    b_test.append(a_test)
   for p in proc:
     p.join()
+  return b, b_test
 
-
-def get_agg_numerics_data(df, additional_data, exclude_cols, train= True):
+def get_agg_numerics_data(df, additional_data, exclude_cols, output, train= True):
+    arr_in_process_cols=None
+    arr_in_process_cols_test=None
     numeric_columns = []
     for col in additional_data.columns:
         if str(additional_data[col].dtype) not in ['object','category'] and col not in exclude_cols:
@@ -613,10 +639,16 @@ def get_agg_numerics_data(df, additional_data, exclude_cols, train= True):
                                   how='left')
             groupby_aggregate_names.append(groupby_aggregate_name)
     if train:
-        arr_in_process_cols.append(df[groupby_aggregate_names])
+        arr_in_process_cols= df[groupby_aggregate_names]
     else:
-        arr_in_process_cols_test.append(df[groupby_aggregate_names])
+        arr_in_process_cols_test = df[groupby_aggregate_names]
+
+    output.put((arr_in_process_cols,arr_in_process_cols_test))
+        
     print("{}".format(df.shape))
+
+
+
 def load_data():
     df_application = pd.read_csv('application_train.csv')
     df_application_test = pd.read_csv('application_test.csv')
