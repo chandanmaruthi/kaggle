@@ -530,7 +530,7 @@ def prep():
     df_application = df_application
     df_application_test = df_application_test
     # Make Subset :
-    subset = 1000
+    subset = 0
     df_application = make_subset(df_application, subset)
     df_application_test = make_subset(df_application_test, subset)
     print("{},{}".format(df_application.shape, df_application_test.shape))
