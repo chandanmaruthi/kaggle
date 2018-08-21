@@ -84,6 +84,7 @@ class util:
                 else:
                     df[col] = df[col].fillna(99999)
             except:
+
                 df[col] = df[col].fillna(99999)
         return df
 
@@ -452,7 +453,7 @@ def fe(df, df_2):
     #                            ('EXT_SOURCE_2', 'mean'),
     #                            ('EXT_SOURCE_3', 'mean')]),
     # ]
-    #
+
     # groupby_aggregate_names = []
     # for groupby_cols, specs in AGGREGATION_RECIPIES:
     #     group_object = df.groupby(groupby_cols)
@@ -568,11 +569,11 @@ def prep():
     df_application = clean_up(df_application)
     df_application_test =  clean_up(df_application_test)
     print("{},{}".format(df_application.shape, df_application_test.shape))
-    # Feature Engineer
-    df_application = fe(df_application, df_application_test)
-    df_application_test = fe(df_application_test, df_application)
-    print("{},{}".format(df_application.shape, df_application_test.shape))
-    print(df_application['TARGET'].unique())
+    # # Feature Engineer
+    #df_application = fe(df_application, df_application_test)
+    #df_application_test = fe(df_application_test, df_application)
+    # print("{},{}".format(df_application.shape, df_application_test.shape))
+    # print(df_application['TARGET'].unique())
 
     parallel_funcs =[]
     # Define an output queue
@@ -590,6 +591,10 @@ def prep():
     parallel_funcs.append({'id':11, 'function1': get_agg_numerics_data, 'args1':[df_application,'POS_CASH_balance', pd.read_csv('POS_CASH_balance.csv'), ['SK_ID_CURR'],output,True]})
     parallel_funcs.append({'id':12, 'function1': get_agg_numerics_data, 'args1':[df_application_test,'POS_CASH_balance', pd.read_csv('POS_CASH_balance.csv'), ['SK_ID_CURR'],output,False]})
 
+    arr_in_process_cols = []
+    arr_in_process_cols_test = []
+    arr_in_process_cols.append(df_application)
+    arr_in_process_cols_test.append(df_application_test)
 
     arr_in_process_cols_tmp, arr_in_process_cols_test_tmp = runInParallel(parallel_funcs)
     print(3)
