@@ -12,10 +12,9 @@ import lightgbm as lgbm
 from sklearn.model_selection import GridSearchCV
 from sklearn.ensemble import ExtraTreesClassifier
 import warnings
-from tqdm import tqdm
 from multiprocessing import Process
 import multiprocessing as mp
-
+from collections import Counter
 
 warnings.filterwarnings("ignore")
 
@@ -32,21 +31,21 @@ class util:
         oh_count = 0
         oh_df = pd.DataFrame()
         # Iterate through the columns
-        for col in tqdm(df):
+        for col in df:
             le = LabelEncoder()
             if col == 'TARGET':
                 continue
             all_df = pd.DataFrame()
             all_df[col] = all_data[col]
 
-            if df[col].dtype == 'object':
+            if str(df[col].dtype) in ['object', 'category']:
                 # If 2 or fewer unique categories
                 if len(list(df[col].unique())) <= 2:
                     #print('le :' + col)
                     # Train on the training data
                     le.fit(all_df[col].astype(str))
                     # Transform both training and testing data
-                    df['le_'+col] = le.transform(df[col])
+                    df['le_'+str(col)] = le.transform(df[col].astype(str))
                     # df_application[col] = le.transform(df_application[col])
 
                     # Keep track of how many columns were label encoded
@@ -67,7 +66,7 @@ class util:
         missing_cols = set( columns ) - set( d.columns )
         for c in missing_cols:
             if c != 'TARGET':
-                d[c] = 0
+                d[c] = 99999
         return d
 
     def handle_nulls(df):
@@ -75,13 +74,16 @@ class util:
             if col == 'TARGET':
                 continue
             #print(df[col].dtype)
-            if str(df[col].dtype) == 'object':
-                #df[col].add_categories(['un_specified'])
-                df[col] = df[col].fillna('un_specified')
-            elif str(df[col].dtype) == 'category':
-                #print(str(df[col].dtype))
-                df[col] = df[col].cat.add_categories([99999]).fillna(99999)
-            else:
+            try:
+                if str(df[col].dtype) == 'object':
+                    #df[col].add_categories(['un_specified'])
+                    df[col] = df[col].fillna(999999)
+                elif str(df[col].dtype) == 'category':
+                    #print(str(df[col].dtype))
+                    df[col] = df[col].cat.add_categories([99999]).fillna(99999)
+                else:
+                    df[col] = df[col].fillna(99999)
+            except:
                 df[col] = df[col].fillna(99999)
         return df
 
@@ -112,12 +114,13 @@ class util:
         model_inst['model'] = model
         model_inst['model_name'] = model_name
         model_inst['score'] = score
-        #print('{}: {}'.format(model_name, score))
+        print('Recording Model and Score ===> {}: {}'.format(model_name, score))
         models.append(model_inst)
 
 
 class Models:
     def model_rf(train_features, test_features, train_labels, test_labels):
+        print('running Random Forest')
         from sklearn.ensemble import RandomForestClassifier
         model = RandomForestClassifier(n_estimators = 100,
                                           random_state = 42,
@@ -127,13 +130,17 @@ class Models:
                                           min_samples_leaf=1,
                                           max_features='auto',
                                           bootstrap=True)
+
+
         # Train the model on training data
         model.fit(train_features, train_labels)
+
         score = util.compute_score(model, test_features, test_labels)
         util.record_model('random_forest',model, score)
         return
 
     def model_gbm(train_features, test_features, train_labels, test_labels):
+        print('running gbm')
         from sklearn.ensemble import GradientBoostingClassifier
         param_test1 = {'n_estimators':range(20,81,10)}
 
@@ -148,70 +155,102 @@ class Models:
         util.record_model("gbm_1", gb, accuracy)
 
     def model_xgb_2(train_features, test_features, train_labels, test_labels):
+        print('running xgboost')
         import xgboost as xgb
         xgb_model_def = xgb.XGBClassifier(max_depth=20,
                                           n_estimators=100,
                                           learning_rate=0.01,
                                           random_state=42,
-                                          max_features='sqrt')
+                                          max_features='sqrt',
+                                          nthread=-1)
         xgb_model = xgb_model_def.fit(train_features,train_labels)
         accuracy = util.compute_score(xgb_model, test_features, test_labels)
         util.record_model("xgb_1", xgb_model, accuracy)
 
     def model_lgbm(X,X_test, y, y_test):
-        print(X.shape)
-        print(X_test.shape)
-        X.fillna(0, inplace=True)
-        X_test  .fillna(0, inplace=True)
-        y.fillna(0, inplace=True)
-        y_test.fillna(0,inplace = True)
-        from sklearn.preprocessing import StandardScaler
-        sc = StandardScaler()
-        X = sc.fit_transform(X)
-        X_test = sc.transform(X_test)
+        print('running light gbm')
+        # print(X.shape)
+        # print(X_test.shape)
+        # X.fillna(0, inplace=True)
+        # X_test  .fillna(0, inplace=True)
+        # y.fillna(0, inplace=True)
+        # y_test.fillna(0,inplace = True)
+        # from sklearn.preprocessing import StandardScaler
+        # sc = StandardScaler()
+        # X = sc.fit_transform(X)
+        # X_test = sc.transform(X_test)
         params = {}
         categorical_features=[]
         #categorical_features = [c for c, col in enumerate(X.columns) if 'cat' in col]
         train_data = lgbm.Dataset(X, label=y, categorical_feature=categorical_features)
         test_data = lgbm.Dataset(X_test, label=y_test)
 
+        params = {
+            'task': 'train',
+            'boosting_type': 'gbdt',
+            'objective': 'binary',
+            'metric': {'binary_logloss', 'auc'},
+            'metric_freq': 1,
+            'is_training_metric': True,
+            'max_bin': 255,
+            'learning_rate': 0.1,
+            'num_leaves': 63,
+            'tree_learner': 'serial',
+            'feature_fraction': 0.8,
+            'bagging_fraction': 0.8,
+            'bagging_freq': 5,
+            'min_data_in_leaf': 50,
+            'min_sum_hessian_in_leaf': 5,
+            'is_enable_sparse': True,
+            'use_two_round_loading': False,
+            'is_save_binary_file': False,
+            'output_model': 'LightGBM_model.txt',
+            'num_machines': 1,
+            'local_listen_port': 12400,
+            'machine_list_file': 'mlist.txt',
+            'verbose': 0,
+            'subsample_for_bin': 200000,
+            'min_child_samples': 20,
+            'min_child_weight': 0.001,
+            'min_split_gain': 0.0,
+            'colsample_bytree': 1.0,
+            'reg_alpha': 0.0,
+            'reg_lambda': 0.0
+        }
+        # Create parameters to search
+        gridParams = {
+            'learning_rate': [0.1],
+            'num_leaves': [63],
+            'boosting_type': ['gbdt'],
+            'objective': ['binary']
+        }
+        #
+        model = lgbm.LGBMClassifier(
+            task = params['task'],
+            metric = params['metric'],
+            metric_freq = params['metric_freq'],
+            is_training_metric = params['is_training_metric'],
+            max_bin = params['max_bin'],
+            tree_learner = params['tree_learner'],
+            feature_fraction = params['feature_fraction'],
+            bagging_fraction = params['bagging_fraction'],
+            bagging_freq = params['bagging_freq'],
+            min_data_in_leaf = params['min_data_in_leaf'],
+            min_sum_hessian_in_leaf = params['min_sum_hessian_in_leaf'],
+            is_enable_sparse = params['is_enable_sparse'],
+            use_two_round_loading = params['use_two_round_loading'],
+            is_save_binary_file = params['is_save_binary_file'],
+            n_jobs = -1)
 
-        # # Create parameters to search
-        # gridParams = {
-        #     'learning_rate': [0.005],
-        #     'n_estimators': [40],
-        #     'num_leaves': [6, 8, 12, 16],
-        #     'boosting_type': ['gbdt'],
-        #     'objective': ['binary'],
-        #     'random_state': [501],  # Updated from 'seed'
-        #     'colsample_bytree': [0.65, 0.66],
-        #     'subsample': [0.7, 0.75],
-        #     'reg_alpha': [1, 1.2],
-        #     'reg_lambda': [1, 1.2, 1.4],
-        # }
         #
-        # model = lgbm.LGBMClassifier(boosting_type='gbdt',
-        #                             objective='binary',
-        #                             n_jobs=3,  # Updated from 'nthread'
-        #                             silent=True,
-        #                             max_depth=params['max_depth'],
-        #                             max_bin=params['max_bin'],
-        #                             subsample_for_bin=params['subsample_for_bin'],
-        #                             subsample=params['subsample'],
-        #                             subsample_freq=params['subsample_freq'],
-        #                             min_split_gain=params['min_split_gain'],
-        #                             min_child_weight=params['min_child_weight'],
-        #                             min_child_samples=params['min_child_samples'],
-        #                             scale_pos_weight=params['scale_pos_weight'])
-        #
-        # grid = GridSearchCV(model, gridParams,
-        #                     verbose=1,
-        #                     cv=4,
-        #                     n_jobs=2)
-        #
-        # # Run the grid
-        # grid.fit(X, y)
-        # params = grid.best_params_
+        scoring = {'AUC': 'roc_auc'}
+
+        # Create the grid
+        grid = GridSearchCV(model, gridParams, verbose=2, cv=5, scoring=scoring, n_jobs=-1, refit='AUC')
+
+        # Run the grid
+        grid.fit(X, y)
+        params = grid.best_params_
 
 
         # def prepLGB(data,
@@ -245,14 +284,14 @@ class Models:
         #
         # Feature Scaling
 
-        params['learning_rate'] = 0.003
-        params['boosting_type'] = 'gbdt'
-        params['objective'] = 'binary'
-        params['metric'] = 'binary_logloss'
-        params['sub_feature'] = 0.5
-        params['num_leaves'] = 10
-        params['min_data'] = 50
-        params['max_depth'] = 10
+        # params['learning_rate'] = 0.003
+        # params['boosting_type'] = 'gbdt'
+        # params['objective'] = 'binary'
+        # params['metric'] = 'binary_logloss'
+        # params['sub_feature'] = 0.5
+        # params['num_leaves'] = 10
+        # params['min_data'] = 50
+        # params['max_depth'] = 10
 
         model = lgbm.train(params,
                            train_data,
@@ -368,80 +407,80 @@ def fe(df, df_2):
     df['phone_to_employ_ratio'] = df['DAYS_LAST_PHONE_CHANGE'] / df['DAYS_EMPLOYED']
 
     # External sources# Exter
-    df['external_sources_weighted'] = df.EXT_SOURCE_1 * 2 + df.EXT_SOURCE_2 * 3 + df.EXT_SOURCE_3 * 4
-    for function_name in ['min', 'max', 'sum', 'mean', 'nanmedian']:
-        df['external_sources_{}'.format(function_name)] = eval('np.{}'.format(function_name))(
-            df[['EXT_SOURCE_1', 'EXT_SOURCE_2', 'EXT_SOURCE_3']], axis=1)
-
-    AGGREGATION_RECIPIES = [
-        (['CODE_GENDER', 'NAME_EDUCATION_TYPE'], [('AMT_ANNUITY', 'max'),
-                                                  ('AMT_CREDIT', 'max'),
-                                                  ('EXT_SOURCE_1', 'mean'),
-                                                  ('EXT_SOURCE_2', 'mean'),
-                                                  ('OWN_CAR_AGE', 'max'),
-                                                  ('OWN_CAR_AGE', 'sum')]),
-        (['CODE_GENDER', 'ORGANIZATION_TYPE'], [('AMT_ANNUITY', 'mean'),
-                                                ('AMT_INCOME_TOTAL', 'mean'),
-                                                ('DAYS_REGISTRATION', 'mean'),
-                                                ('EXT_SOURCE_1', 'mean')]),
-        (['CODE_GENDER', 'REG_CITY_NOT_WORK_CITY'], [('AMT_ANNUITY', 'mean'),
-                                                     ('CNT_CHILDREN', 'mean'),
-                                                     ('DAYS_ID_PUBLISH', 'mean')]),
-        (['CODE_GENDER', 'NAME_EDUCATION_TYPE', 'OCCUPATION_TYPE', 'REG_CITY_NOT_WORK_CITY'], [('EXT_SOURCE_1', 'mean'),
-                                                                                               ('EXT_SOURCE_2',
-                                                                                                'mean')]),
-        (['NAME_EDUCATION_TYPE', 'OCCUPATION_TYPE'], [('AMT_CREDIT', 'mean'),
-                                                      ('AMT_REQ_CREDIT_BUREAU_YEAR', 'mean'),
-                                                      ('APARTMENTS_AVG', 'mean'),
-                                                      ('BASEMENTAREA_AVG', 'mean'),
-                                                      ('EXT_SOURCE_1', 'mean'),
-                                                      ('EXT_SOURCE_2', 'mean'),
-                                                      ('EXT_SOURCE_3', 'mean'),
-                                                      ('NONLIVINGAREA_AVG', 'mean'),
-                                                      ('OWN_CAR_AGE', 'mean'),
-                                                      ('YEARS_BUILD_AVG', 'mean')]),
-        (['NAME_EDUCATION_TYPE', 'OCCUPATION_TYPE', 'REG_CITY_NOT_WORK_CITY'], [('ELEVATORS_AVG', 'mean'),
-                                                                                ('EXT_SOURCE_1', 'mean')]),
-        (['OCCUPATION_TYPE'], [('AMT_ANNUITY', 'mean'),
-                               ('CNT_CHILDREN', 'mean'),
-                               ('CNT_FAM_MEMBERS', 'mean'),
-                               ('DAYS_BIRTH', 'mean'),
-                               ('DAYS_EMPLOYED', 'mean'),
-                               ('DAYS_ID_PUBLISH', 'mean'),
-                               ('DAYS_REGISTRATION', 'mean'),
-                               ('EXT_SOURCE_1', 'mean'),
-                               ('EXT_SOURCE_2', 'mean'),
-                               ('EXT_SOURCE_3', 'mean')]),
-    ]
-
-    groupby_aggregate_names = []
-    for groupby_cols, specs in tqdm(AGGREGATION_RECIPIES):
-        group_object = df.groupby(groupby_cols)
-        for select, agg in specs:
-            groupby_aggregate_name = '{}_{}_{}'.format('_'.join(groupby_cols), agg, select)
-            df = df.merge(group_object[select]
-                        .agg(agg)
-                        .reset_index()
-                        .rename(index=str,
-                                columns={select: groupby_aggregate_name})
-                        [groupby_cols + [groupby_aggregate_name]],
-                        on=groupby_cols,
-                        how='left')
-            groupby_aggregate_names.append(groupby_aggregate_name)
-
-    diff_feature_names = []
-    for groupby_cols, specs in AGGREGATION_RECIPIES:
-        for select, agg in specs:
-            if agg in ['mean', 'median', 'max', 'min']:
-                groupby_aggregate_name = '{}_{}_{}'.format('_'.join(groupby_cols), agg, select)
-                diff_name = '{}_diff'.format(groupby_aggregate_name)
-                abs_diff_name = '{}_abs_diff'.format(groupby_aggregate_name)
-
-                df[diff_name] = df[select] - df[groupby_aggregate_name]
-                df[abs_diff_name] = np.abs(df[select] - df[groupby_aggregate_name])
-
-                diff_feature_names.append(diff_name)
-                diff_feature_names.append(abs_diff_name)
+    # df['external_sources_weighted'] = df.EXT_SOURCE_1 * 2 + df.EXT_SOURCE_2 * 3 + df.EXT_SOURCE_3 * 4
+    # for function_name in ['min', 'max', 'sum', 'mean', 'nanmedian']:
+    #     df['external_sources_{}'.format(function_name)] = eval('np.{}'.format(function_name))(
+    #         df[['EXT_SOURCE_1', 'EXT_SOURCE_2', 'EXT_SOURCE_3']], axis=1)
+    #
+    # AGGREGATION_RECIPIES = [
+    #     (['CODE_GENDER', 'NAME_EDUCATION_TYPE'], [('AMT_ANNUITY', 'max'),
+    #                                               ('AMT_CREDIT', 'max'),
+    #                                               ('EXT_SOURCE_1', 'mean'),
+    #                                               ('EXT_SOURCE_2', 'mean'),
+    #                                               ('OWN_CAR_AGE', 'max'),
+    #                                               ('OWN_CAR_AGE', 'sum')]),
+    #     (['CODE_GENDER', 'ORGANIZATION_TYPE'], [('AMT_ANNUITY', 'mean'),
+    #                                             ('AMT_INCOME_TOTAL', 'mean'),
+    #                                             ('DAYS_REGISTRATION', 'mean'),
+    #                                             ('EXT_SOURCE_1', 'mean')]),
+    #     (['CODE_GENDER', 'REG_CITY_NOT_WORK_CITY'], [('AMT_ANNUITY', 'mean'),
+    #                                                  ('CNT_CHILDREN', 'mean'),
+    #                                                  ('DAYS_ID_PUBLISH', 'mean')]),
+    #     (['CODE_GENDER', 'NAME_EDUCATION_TYPE', 'OCCUPATION_TYPE', 'REG_CITY_NOT_WORK_CITY'], [('EXT_SOURCE_1', 'mean'),
+    #                                                                                            ('EXT_SOURCE_2',
+    #                                                                                             'mean')]),
+    #     (['NAME_EDUCATION_TYPE', 'OCCUPATION_TYPE'], [('AMT_CREDIT', 'mean'),
+    #                                                   ('AMT_REQ_CREDIT_BUREAU_YEAR', 'mean'),
+    #                                                   ('APARTMENTS_AVG', 'mean'),
+    #                                                   ('BASEMENTAREA_AVG', 'mean'),
+    #                                                   ('EXT_SOURCE_1', 'mean'),
+    #                                                   ('EXT_SOURCE_2', 'mean'),
+    #                                                   ('EXT_SOURCE_3', 'mean'),
+    #                                                   ('NONLIVINGAREA_AVG', 'mean'),
+    #                                                   ('OWN_CAR_AGE', 'mean'),
+    #                                                   ('YEARS_BUILD_AVG', 'mean')]),
+    #     (['NAME_EDUCATION_TYPE', 'OCCUPATION_TYPE', 'REG_CITY_NOT_WORK_CITY'], [('ELEVATORS_AVG', 'mean'),
+    #                                                                             ('EXT_SOURCE_1', 'mean')]),
+    #     (['OCCUPATION_TYPE'], [('AMT_ANNUITY', 'mean'),
+    #                            ('CNT_CHILDREN', 'mean'),
+    #                            ('CNT_FAM_MEMBERS', 'mean'),
+    #                            ('DAYS_BIRTH', 'mean'),
+    #                            ('DAYS_EMPLOYED', 'mean'),
+    #                            ('DAYS_ID_PUBLISH', 'mean'),
+    #                            ('DAYS_REGISTRATION', 'mean'),
+    #                            ('EXT_SOURCE_1', 'mean'),
+    #                            ('EXT_SOURCE_2', 'mean'),
+    #                            ('EXT_SOURCE_3', 'mean')]),
+    # ]
+    #
+    # groupby_aggregate_names = []
+    # for groupby_cols, specs in AGGREGATION_RECIPIES:
+    #     group_object = df.groupby(groupby_cols)
+    #     for select, agg in specs:
+    #         groupby_aggregate_name = '{}_{}_{}'.format('_'.join(groupby_cols), agg, select)
+    #         df = df.merge(group_object[select]
+    #                     .agg(agg)
+    #                     .reset_index()
+    #                     .rename(index=str,
+    #                             columns={select: groupby_aggregate_name})
+    #                     [groupby_cols + [groupby_aggregate_name]],
+    #                     on=groupby_cols,
+    #                     how='left')
+    #         groupby_aggregate_names.append(groupby_aggregate_name)
+    #
+    # diff_feature_names = []
+    # for groupby_cols, specs in AGGREGATION_RECIPIES:
+    #     for select, agg in specs:
+    #         if agg in ['mean', 'median', 'max', 'min']:
+    #             groupby_aggregate_name = '{}_{}_{}'.format('_'.join(groupby_cols), agg, select)
+    #             diff_name = '{}_diff'.format(groupby_aggregate_name)
+    #             abs_diff_name = '{}_abs_diff'.format(groupby_aggregate_name)
+    #
+    #             df[diff_name] = df[select] - df[groupby_aggregate_name]
+    #             df[abs_diff_name] = np.abs(df[select] - df[groupby_aggregate_name])
+    #
+    #             diff_feature_names.append(diff_name)
+    #             diff_feature_names.append(abs_diff_name)
 
 
 
@@ -452,8 +491,13 @@ def fe(df, df_2):
 
 def align_datasets(df, df2):
     df = util.add_missing_dummy_columns(df, df2.columns)
+    df2 = util.add_missing_dummy_columns(df2, df.columns)
+
     df.columns = df.columns.str.replace(' ', '')
-    return df
+    df2.columns =  df2.columns.str.replace(' ','')
+    df = util.handle_nulls(df)
+    df2 = util.handle_nulls(df2)
+    return df, df2
 
 
 def featureSelection(df, df_test):
@@ -471,30 +515,15 @@ def featureSelection(df, df_test):
     df_test = df_test[selected_features]
     return df, df_test
 
-def run(df, df_test, df_all, train=True):
+def run(df, df_test, train=True):
 
-    df = align_datasets(df,df_test)
-    df_test = align_datasets(df_test,df)
-    print(df.shape)
-    print(df_test.shape)
-
-    df_raw= df
-    df_test_raw= df_test
+    print('splitting data')
     X_train, X_test, y_train, y_test = util.gen_train_test_split(df)
 
-    X_train.fillna(0, inplace=True)
-    X_test.fillna(0, inplace=True)
-    df_test.fillna(0,inplace=True)
-
-    #y_train.fillna(0, inplace=True)
-    #y_test.fillna(0, inplace=True)
-
-
     Models.model_rf(X_train, X_test,y_train, y_test)
-    Models.model_gbm(X_train, X_test, y_train, y_test)
-    Models.model_xgb_2(X_train, X_test, y_train, y_test)
-    #Models.model_lgbm(X_train_raw, X_test_raw, y_train_raw, y_test_raw)
-    #Models.model_lgbm(X_train, X_test, y_train, y_test)
+    #Models.model_gbm(X_train, X_test, y_train, y_test)
+    #Models.model_xgb_2(X_train, X_test, y_train, y_test)
+    Models.model_lgbm(X_train, X_test, y_train, y_test)
     score = 0
     selected_model = None
     print(models)
@@ -506,6 +535,7 @@ def run(df, df_test, df_all, train=True):
         print(name + " :  " + str(score))
 
     #prediction = selected_model.predict(df_test_raw.drop(['TARGET'],axis=1))
+    df_test=df_test[X_train.columns]
     prediction = selected_model.predict(df_test)
     submission_df = pd.DataFrame()
     submission_df['SK_ID_CURR'] = df_test['SK_ID_CURR']
@@ -527,8 +557,7 @@ def prep():
     # load data
     df_application, df_application_test = load_data()
 
-    df_application = df_application
-    df_application_test = df_application_test
+
     # Make Subset :
     subset = 0
     df_application = make_subset(df_application, subset)
@@ -548,47 +577,69 @@ def prep():
     parallel_funcs =[]
     # Define an output queue
 
-    parallel_funcs.append({'id':1, 'function1': get_agg_numerics_data, 'args1':[df_application, df_application,['SK_ID_CURR'], output,True]})
-    parallel_funcs.append({'id':2, 'function1': get_agg_numerics_data, 'args1':[df_application_test, df_application, ['SK_ID_CURR'], output,False]})
-    parallel_funcs.append({'id':3, 'function1': get_agg_numerics_data, 'args1':[df_application, pd.read_csv('installments_payments.csv'),['SK_ID_CURR'], output,True]})
-    parallel_funcs.append({'id':4, 'function1': get_agg_numerics_data, 'args1': [df_application_test, pd.read_csv('installments_payments.csv'), ['SK_ID_CURR'], output,False]})
-    parallel_funcs.append({'id':5, 'functi on1': get_agg_numerics_data, 'args1':[df_application, pd.read_csv('bureau.csv'),['SK_ID_CURR'], output,True]})
-    parallel_funcs.append({'id':6, 'function1': get_agg_numerics_data, 'args1':[df_application_test, pd.read_csv('bureau.csv'), ['SK_ID_CURR'], output,False]})
-    parallel_funcs.append({'id':7, 'function1': get_agg_numerics_data, 'args1':[df_application, pd.read_csv('POS_CASH_balance.csv'), ['SK_ID_CURR'], output,True]})
-    parallel_funcs.append({'id':8, 'function1': get_agg_numerics_data, 'args1':[df_application_test, pd.read_csv('POS_CASH_balance.csv'), ['SK_ID_CURR'], output,False]})
-    parallel_funcs.append({'id':9, 'function1': get_agg_numerics_data, 'args1':[df_application, pd.read_csv('previous_application.csv'), ['SK_ID_CURR'], output,True]})
-    parallel_funcs.append({'id':10, 'function1': get_agg_numerics_data, 'args1':[df_application_test, pd.read_csv('previous_application.csv'), ['SK_ID_CURR'],output,False]})
-    parallel_funcs.append({'id':11, 'function1': get_agg_numerics_data, 'args1':[df_application, pd.read_csv('POS_CASH_balance.csv'), ['SK_ID_CURR'],output,True]})
-    parallel_funcs.append({'id':12, 'function1': get_agg_numerics_data, 'args1':[df_application_test, pd.read_csv('POS_CASH_balance.csv'), ['SK_ID_CURR'],output,False]})
+    #parallel_funcs.append({'id':1, 'function1': get_agg_numerics_data, 'args1':[df_application, df_application,['SK_ID_CURR'], output,True]})
+    #parallel_funcs.append({'id':2, 'function1': get_agg_numerics_data, 'args1':[df_application_test, df_application, ['SK_ID_CURR'], output,False]})
+    parallel_funcs.append({'id':3, 'function1': get_agg_numerics_data, 'args1':[df_application,'installments_payments', pd.read_csv('installments_payments.csv'),['SK_ID_CURR'], output,True]})
+    parallel_funcs.append({'id':4, 'function1': get_agg_numerics_data, 'args1': [df_application_test,'installments_payments', pd.read_csv('installments_payments.csv'), ['SK_ID_CURR'], output,False]})
+    parallel_funcs.append({'id':5, 'function1': get_agg_numerics_data, 'args1':[df_application,'bureau', pd.read_csv('bureau.csv'),['SK_ID_CURR'], output,True]})
+    parallel_funcs.append({'id':6, 'function1': get_agg_numerics_data, 'args1':[df_application_test, 'bureau', pd.read_csv('bureau.csv'), ['SK_ID_CURR'], output,False]})
+    parallel_funcs.append({'id':7, 'function1': get_agg_numerics_data, 'args1':[df_application,'POS_CASH_balance', pd.read_csv('POS_CASH_balance.csv'), ['SK_ID_CURR'], output,True]})
+    parallel_funcs.append({'id':8, 'function1': get_agg_numerics_data, 'args1':[df_application_test,'POS_CASH_balance', pd.read_csv('POS_CASH_balance.csv'), ['SK_ID_CURR'], output,False]})
+    parallel_funcs.append({'id':9, 'function1': get_agg_numerics_data, 'args1':[df_application,'previous_application', pd.read_csv('previous_application.csv'), ['SK_ID_CURR'], output,True]})
+    parallel_funcs.append({'id':10, 'function1': get_agg_numerics_data, 'args1':[df_application_test,'previous_application', pd.read_csv('previous_application.csv'), ['SK_ID_CURR'],output,False]})
+    parallel_funcs.append({'id':11, 'function1': get_agg_numerics_data, 'args1':[df_application,'POS_CASH_balance', pd.read_csv('POS_CASH_balance.csv'), ['SK_ID_CURR'],output,True]})
+    parallel_funcs.append({'id':12, 'function1': get_agg_numerics_data, 'args1':[df_application_test,'POS_CASH_balance', pd.read_csv('POS_CASH_balance.csv'), ['SK_ID_CURR'],output,False]})
 
-    arr_in_process_cols = []
-    arr_in_process_cols_test = []
-    arr_in_process_cols.append(df_application)
-    arr_in_process_cols_test.append(df_application_test)
 
     arr_in_process_cols_tmp, arr_in_process_cols_test_tmp = runInParallel(parallel_funcs)
     print(3)
 
-    print(len(arr_in_process_cols))
-    print(len(arr_in_process_cols_test))
+    print(len(arr_in_process_cols_tmp))
+    print(len(arr_in_process_cols_test_tmp))
 
     for df_tmp in arr_in_process_cols_tmp:
         df_application = pd.concat([df_application, df_tmp],axis=1)
-        arr_in_process_cols.append(df_tmp)
+    df_tmp = None
     for df_tmp in arr_in_process_cols_test_tmp:
         df_application_test = pd.concat([df_application_test, df_tmp],axis=1)
 
     print("{},{}".format(df_application.shape, df_application_test.shape))
+
+
+
+    df_application= duplicate_columns(df_application)
+    df_application_test= duplicate_columns(df_application_test)
+
+    df_application = df_application.reset_index()
+    df_application_test = df_application_test.reset_index()
+    df_application = df_application.replace([np.inf, -np.inf], 0)
+    df_application_test = df_application_test.replace([np.inf, -np.inf], 0)
+
     # Align Datasets
-    df_application = align_datasets(df_application,df_application_test)
-    df_application_test = align_datasets(df_application_test,df_application)
+    df_application, df_application_test = align_datasets(df_application,df_application_test)
+
     print("{},{}".format(df_application.shape, df_application_test.shape))
 
+    print(Counter(df_application))
     # Checkpoint Save
-    df_application.to_csv('application_processed.csv',index = False)
-    df_application_test.to_csv('application_test_processed.csv',index = False)
+    df_application.to_pickle('application_processed.pickle')
+    df_application_test.to_pickle('application_test_processed.pickle')
     print("{},{}".format(df_application.shape, df_application_test.shape))
 
+
+def duplicate_columns(frame):
+    arr_cols = []
+    arr_col_ind =[]
+    df= pd.DataFrame()
+    for id in range(len(frame.columns)-1):
+        print(id)
+        if frame.iloc[:, id].name not in arr_cols:
+            #df= pd.concat([df, frame.iloc[:,id]], axis=1)
+            arr_col_ind.append(id)
+            arr_cols.append(frame.iloc[:, id].name)
+    print(arr_col_ind)
+    df = pd.concat([df, frame.iloc[:, arr_col_ind]], axis=1)
+    return df
 
 def runInParallel(fns):
   proc = []
@@ -611,7 +662,7 @@ def runInParallel(fns):
     p.join()
   return b, b_test
 
-def get_agg_numerics_data(df, additional_data, exclude_cols, output, train= True):
+def get_agg_numerics_data(df, file_name,  additional_data, exclude_cols, output, train= True):
     arr_in_process_cols=None
     arr_in_process_cols_test=None
     numeric_columns = []
@@ -625,10 +676,12 @@ def get_agg_numerics_data(df, additional_data, exclude_cols, output, train= True
     AGGREGATION_RECIPIES = [(['SK_ID_CURR'], AGGREGATION_RECIPIES)]
 
     groupby_aggregate_names = []
+    counter =0
     for groupby_cols, specs in AGGREGATION_RECIPIES:
         group_object = additional_data.groupby(groupby_cols)
         for select, agg in specs:
-            groupby_aggregate_name = '{}_{}_{}'.format('_'.join(groupby_cols), agg, select)
+            counter +=1
+            groupby_aggregate_name = '{}_{}_{}_{}_{}'.format(str(counter),file_name, '_'.join(groupby_cols), agg, select)
             df = df.merge(group_object[select]
                                   .agg(agg)
                                   .reset_index()
@@ -636,12 +689,12 @@ def get_agg_numerics_data(df, additional_data, exclude_cols, output, train= True
                                           columns={select: groupby_aggregate_name})
                                   [groupby_cols + [groupby_aggregate_name]],
                                   on=groupby_cols,
-                                  how='left')
+                                  how='inner')
             groupby_aggregate_names.append(groupby_aggregate_name)
     if train:
-        arr_in_process_cols= df[groupby_aggregate_names]
+        arr_in_process_cols= df[list(set(groupby_aggregate_names))]
     else:
-        arr_in_process_cols_test = df[groupby_aggregate_names]
+        arr_in_process_cols_test = df[list(set(groupby_aggregate_names))]
 
     output.put((arr_in_process_cols,arr_in_process_cols_test))
         
@@ -663,19 +716,21 @@ def load_data():
     #df_application, df_application_test = featureSelection(df_application, df_application_test)
 
 
-prep()
-exit()
+#prep()
+#exit()
 
 
 
 
 
-df = pd.read_csv('application_processed.csv')
-df_test = pd.read_csv('application_test_processed.csv')
+df = pd.read_pickle('application_processed.pickle')
+df_test = pd.read_pickle('application_test_processed.pickle')
 
+print(Counter(df))
+print(df.shape)
+print(df_test.shape)
 print(set(df.columns)-set(df_test.columns))
+#df.drop(['CODE_GENDER__XNA'],axis=1, inplace=True)
 
-all_data = pd.concat([df, df_test],axis=0)
-print(df['TARGET'].unique())
 
-run(df,df_test,all_data, True)
+run(df,df_test,True)
