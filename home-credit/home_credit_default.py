@@ -247,7 +247,6 @@ class Models:
         scoring = {'AUC': 'roc_auc'}
 
         # Create the grid
-        grid = GridSearchCV(model, gridParams, verbose=2, cv=5, scoring=scoring, n_jobs=-1, refit='AUC')
 
         # Run the grid
         grid.fit(X, y)
@@ -370,7 +369,17 @@ array_binnable_cols = ['AMT_CREDIT',
 'NONLIVINGAPARTMENTS_MEDI',
 'NONLIVINGAREA_MEDI']
 
-
+binary_binnable_cols =[
+'OBS_30_CNT_SOCIAL_CIRCLE',
+'DEF_30_CNT_SOCIAL_CIRCLE',
+'OBS_60_CNT_SOCIAL_CIRCLE',
+'DEF_60_CNT_SOCIAL_CIRCLE',
+'AMT_REQ_CREDIT_BUREAU_HOUR',
+'AMT_REQ_CREDIT_BUREAU_DAY',
+'AMT_REQ_CREDIT_BUREAU_WEEK',
+'AMT_REQ_CREDIT_BUREAU_MON',
+'AMT_REQ_CREDIT_BUREAU_QRT',
+'AMT_REQ_CREDIT_BUREAU_YEAR']
 
 def clean_up(df):
     df = util.handle_nulls(df)
@@ -382,8 +391,13 @@ def fe(df, df_2):
     for col in array_binnable_cols:
         #print(col)
         df['binned_' +col] = bin_col_q_bins(df, col, 10)
-        df['binned_' +col] = bin_col_q_bins(df, col, 10)
+        #df['binned_' +col] = bin_col_q_bins(df, col, 10)
 
+    binary_binns = [-1,1,10000]
+    binary_bin_labels = [0,1]
+    for col in binary_binnable_cols:
+        # print(col)
+        df['binary_binned_' + col] = binn_col(df, col, binary_binns, binary_bin_labels)
 
     df['NAME_FAMILY_STATUS_IS_MARRIED'] = df['NAME_FAMILY_STATUS'].map({'Civilmarriage':1, 'Married':1, 'Separated':0, 'Single/notmarried':0,'Unknown':0, 'Widow':0})
     df['NAME_INCOME_TYPE_IS_WORKING'] = df['NAME_INCOME_TYPE'].map({'Businessman':0,'Commercialassociate':0,'Maternityleave':0, 'Pensioner':0,'Stateservant':1, 'Student':0,'Unemployed':0, 'Working':1})
@@ -578,8 +592,24 @@ def prep():
     parallel_funcs =[]
     # Define an output queue
 
-    #parallel_funcs.append({'id':1, 'function1': get_agg_numerics_data, 'args1':[df_application, df_application,['SK_ID_CURR'], output,True]})
-    #parallel_funcs.append({'id':2, 'function1': get_agg_numerics_data, 'args1':[df_application_test, df_application, ['SK_ID_CURR'], output,False]})
+
+    df_installments_payments = pd.read_csv('installments_payments.csv')
+    df_bureau = pd.read_csv('bureau.csv')
+    df_pos_cash_balance = pd.read_csv('POS_CASH_balance.csv')
+    df_prev_application = pd.read_csv('previous_application.csv')
+    df_credit_card_balance = pd.read_csv('credit_card_balance.csv')
+
+    #df_application['DAYS_LAST_PHONE_CHANGE'].replace(0, np.nan, inplace=True)
+
+    df_bureau['DAYS_CREDIT_ENDDATE'][df_bureau['DAYS_CREDIT_ENDDATE'] < -40000] = np.nan
+    df_bureau['DAYS_CREDIT_UPDATE'][df_bureau['DAYS_CREDIT_UPDATE'] < -40000] = np.nan
+    df_bureau['DAYS_ENDDATE_FACT'][df_bureau['DAYS_ENDDATE_FACT'] < -40000] = np.nan
+
+    df_credit_card_balance['AMT_DRAWINGS_ATM_CURRENT'][df_credit_card_balance['AMT_DRAWINGS_ATM_CURRENT'] < 0] = np.nan
+    df_credit_card_balance['AMT_DRAWINGS_CURRENT'][df_credit_card_balance['AMT_DRAWINGS_CURRENT'] < 0] = np.nan
+
+    parallel_funcs.append({'id':1, 'function1': get_agg_numerics_data, 'args1':[df_application, df_application,['SK_ID_CURR'], output,True]})
+    parallel_funcs.append({'id':2, 'function1': get_agg_numerics_data, 'args1':[df_application_test, df_application_test, ['SK_ID_CURR'], output,False]})
     parallel_funcs.append({'id':3, 'function1': get_agg_numerics_data, 'args1':[df_application,'installments_payments', pd.read_csv('installments_payments.csv'),['SK_ID_CURR'], output,True]})
     parallel_funcs.append({'id':4, 'function1': get_agg_numerics_data, 'args1': [df_application_test,'installments_payments', pd.read_csv('installments_payments.csv'), ['SK_ID_CURR'], output,False]})
     parallel_funcs.append({'id':5, 'function1': get_agg_numerics_data, 'args1':[df_application,'bureau', pd.read_csv('bureau.csv'),['SK_ID_CURR'], output,True]})
@@ -721,8 +751,8 @@ def load_data():
     #df_application, df_application_test = featureSelection(df_application, df_application_test)
 
 
-#prep()
-#exit()
+prep()
+exit()
 
 
 
