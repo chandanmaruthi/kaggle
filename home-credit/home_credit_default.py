@@ -249,8 +249,8 @@ class Models:
         # Create the grid
 
         # Run the grid
-        grid.fit(X, y)
-        params = grid.best_params_
+        #grid.fit(X, y)
+        #params = grid.best_params_
 
 
         # def prepLGB(data,
@@ -752,8 +752,8 @@ def load_data():
     #df_application, df_application_test = featureSelection(df_application, df_application_test)
 
 
-prep()
-exit()
+#prep()
+#exit()
 
 
 
