@@ -574,7 +574,7 @@ def prep():
 
 
     # Make Subset :
-    subset = 0
+    subset = 1000
     df_application = make_subset(df_application, subset)
     df_application_test = make_subset(df_application_test, subset)
     print("{},{}".format(df_application.shape, df_application_test.shape))
@@ -584,9 +584,9 @@ def prep():
     df_application_test =  clean_up(df_application_test)
     print("{},{}".format(df_application.shape, df_application_test.shape))
     # # Feature Engineer
-    #df_application = fe(df_application, df_application_test)
-    #df_application_test = fe(df_application_test, df_application)
-    # print("{},{}".format(df_application.shape, df_application_test.shape))
+    df_application = fe(df_application, df_application_test)
+    df_application_test = fe(df_application_test, df_application)
+    print("{},{}".format(df_application.shape, df_application_test.shape))
     # print(df_application['TARGET'].unique())
 
     parallel_funcs =[]
@@ -608,18 +608,18 @@ def prep():
     df_credit_card_balance['AMT_DRAWINGS_ATM_CURRENT'][df_credit_card_balance['AMT_DRAWINGS_ATM_CURRENT'] < 0] = np.nan
     df_credit_card_balance['AMT_DRAWINGS_CURRENT'][df_credit_card_balance['AMT_DRAWINGS_CURRENT'] < 0] = np.nan
 
-    parallel_funcs.append({'id':1, 'function1': get_agg_numerics_data, 'args1':[df_application, df_application,['SK_ID_CURR'], output,True]})
-    parallel_funcs.append({'id':2, 'function1': get_agg_numerics_data, 'args1':[df_application_test, df_application_test, ['SK_ID_CURR'], output,False]})
-    parallel_funcs.append({'id':3, 'function1': get_agg_numerics_data, 'args1':[df_application,'installments_payments', pd.read_csv('installments_payments.csv'),['SK_ID_CURR'], output,True]})
-    parallel_funcs.append({'id':4, 'function1': get_agg_numerics_data, 'args1': [df_application_test,'installments_payments', pd.read_csv('installments_payments.csv'), ['SK_ID_CURR'], output,False]})
-    parallel_funcs.append({'id':5, 'function1': get_agg_numerics_data, 'args1':[df_application,'bureau', pd.read_csv('bureau.csv'),['SK_ID_CURR'], output,True]})
-    parallel_funcs.append({'id':6, 'function1': get_agg_numerics_data, 'args1':[df_application_test, 'bureau', pd.read_csv('bureau.csv'), ['SK_ID_CURR'], output,False]})
-    parallel_funcs.append({'id':7, 'function1': get_agg_numerics_data, 'args1':[df_application,'POS_CASH_balance', pd.read_csv('POS_CASH_balance.csv'), ['SK_ID_CURR'], output,True]})
-    parallel_funcs.append({'id':8, 'function1': get_agg_numerics_data, 'args1':[df_application_test,'POS_CASH_balance', pd.read_csv('POS_CASH_balance.csv'), ['SK_ID_CURR'], output,False]})
-    parallel_funcs.append({'id':9, 'function1': get_agg_numerics_data, 'args1':[df_application,'previous_application', pd.read_csv('previous_application.csv'), ['SK_ID_CURR'], output,True]})
-    parallel_funcs.append({'id':10, 'function1': get_agg_numerics_data, 'args1':[df_application_test,'previous_application', pd.read_csv('previous_application.csv'), ['SK_ID_CURR'],output,False]})
-    parallel_funcs.append({'id':11, 'function1': get_agg_numerics_data, 'args1':[df_application,'POS_CASH_balance', pd.read_csv('POS_CASH_balance.csv'), ['SK_ID_CURR'],output,True]})
-    parallel_funcs.append({'id':12, 'function1': get_agg_numerics_data, 'args1':[df_application_test,'POS_CASH_balance', pd.read_csv('POS_CASH_balance.csv'), ['SK_ID_CURR'],output,False]})
+    parallel_funcs.append({'id':1, 'function1': get_agg_numerics_data, 'args1':[df_application, 'application', df_application,['SK_ID_CURR'], output,True]})
+    parallel_funcs.append({'id':2, 'function1': get_agg_numerics_data, 'args1':[df_application_test, 'application', df_application_test, ['SK_ID_CURR'], output,False]})
+    parallel_funcs.append({'id':3, 'function1': get_agg_numerics_data, 'args1':[df_application,'installments_payments', df_installments_payments,['SK_ID_CURR'], output,True]})
+    parallel_funcs.append({'id':4, 'function1': get_agg_numerics_data, 'args1': [df_application_test,'installments_payments', df_installments_payments, ['SK_ID_CURR'], output,False]})
+    parallel_funcs.append({'id':5, 'function1': get_agg_numerics_data, 'args1':[df_application,'bureau', df_bureau,['SK_ID_CURR'], output,True]})
+    parallel_funcs.append({'id':6, 'function1': get_agg_numerics_data, 'args1':[df_application_test, 'bureau', df_bureau, ['SK_ID_CURR'], output,False]})
+    parallel_funcs.append({'id':7, 'function1': get_agg_numerics_data, 'args1':[df_application,'POS_CASH_balance', df_pos_cash_balance, ['SK_ID_CURR'], output,True]})
+    parallel_funcs.append({'id':8, 'function1': get_agg_numerics_data, 'args1':[df_application_test,'POS_CASH_balance', df_pos_cash_balance, ['SK_ID_CURR'], output,False]})
+    parallel_funcs.append({'id':9, 'function1': get_agg_numerics_data, 'args1':[df_application,'previous_application', df_prev_application, ['SK_ID_CURR'], output,True]})
+    parallel_funcs.append({'id':10, 'function1': get_agg_numerics_data, 'args1':[df_application_test,'previous_application', df_prev_application, ['SK_ID_CURR'],output,False]})
+    #parallel_funcs.append({'id':11, 'function1': get_agg_numerics_data, 'args1':[df_application,'POS_CASH_balance', df_credit_card_balance, ['SK_ID_CURR'],output,True]})
+    #parallel_funcs.append({'id':12, 'function1': get_agg_numerics_data, 'args1':[df_application_test,'POS_CASH_balance', df_credit_card_balance, ['SK_ID_CURR'],output,False]})
 
     arr_in_process_cols = []
     arr_in_process_cols_test = []
@@ -717,6 +717,7 @@ def get_agg_numerics_data(df, file_name,  additional_data, exclude_cols, output,
         for select, agg in specs:
             counter +=1
             groupby_aggregate_name = '{}_{}_{}_{}_{}'.format(str(counter),file_name, '_'.join(groupby_cols), agg, select)
+            print("processing {}".format(groupby_aggregate_name))
             df = df.merge(group_object[select]
                                   .agg(agg)
                                   .reset_index()
