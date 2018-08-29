@@ -528,7 +528,7 @@ def get_agg_numerics_data(df, file_name,  additional_data, exclude_cols, output,
             groupby_aggregate_name = '{}_{}_{}_{}_{}'.format(str(counter),file_name, '_'.join(groupby_cols), agg, select)
             print("adding process {}".format(groupby_aggregate_name))
             parallel_funcs_2.append({'id': 10+counter*0.001, 'function1': agg_single,
-                                   'args1': [train, select, agg, group_object, groupby_aggregate                                                                                                                                        _name, groupby_cols]})
+                                   'args1': [train, select, agg, group_object, groupby_aggregate_name, groupby_cols]})
 
 def agg_single(index):
     train, select, agg, group_object, groupby_aggregate_name, groupby_cols = multiprocessing_args[index]
