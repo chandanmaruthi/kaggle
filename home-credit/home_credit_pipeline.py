@@ -410,7 +410,7 @@ def prep(subset=0):
     print("{},{}".format(df_application.shape, df_application_test.shape))
 
 
-
+    print("check for duplicate cols")
     df_application= duplicate_columns(df_application)
     df_application_test= duplicate_columns(df_application_test)
 
@@ -419,12 +419,13 @@ def prep(subset=0):
     df_application = df_application.replace([np.inf, -np.inf], 0)
     df_application_test = df_application_test.replace([np.inf, -np.inf], 0)
 
+    print("aligning datasets")
     # Align Datasets
     df_application, df_application_test = align_datasets(df_application,df_application_test)
 
     print("{},{}".format(df_application.shape, df_application_test.shape))
 
-    print(Counter(df_application))
+    #print(Counter(df_application))
     # Checkpoint Save
     df_application.to_pickle('application_processed.pickle')
     df_application_test.to_pickle('application_test_processed.pickle')
@@ -453,6 +454,8 @@ def totuple(a):
         return a
 
 def log_result(result):
+    global b
+    global b_test
     a = result[0]
     a_test = result[1]
     print('logging result: {} {}'.format(a.shape if a is not None else 0 , a_test.shape if a_test is not None else 0))
@@ -467,12 +470,13 @@ def runInParallel(fns, final=False):
     function = fns[0]['function1']
     for row in fns:
         args.append(row['args1'])
-    args = tuple(map(tuple, args))
+    args = list(map(tuple, args))
 
-    pool = multiprocessing.Pool(processes=4)
-    for i in range(len(args)-1):
+    pool = multiprocessing.Pool(processes=6)
+    #for i in range(len(args)-1):
         #print(totuple(args[i]))
-        pool.apply_async(agg_single, args = totuple(args[i]), callback = log_result, error_callback=log_error)
+
+    pool.map_async(agg_single, args, callback = log_result, error_callback=log_error).wait()
     pool.close()
     pool.join()
 
