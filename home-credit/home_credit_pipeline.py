@@ -464,14 +464,17 @@ def log_result(result):
     b_test.append(a_test)
 def log_error(error):
     print(error)
+multiprocessing_args = []
 def runInParallel(fns, final=False):
+    global multiprocessing_args
     proc = []
-    args = []
+
     function = fns[0]['function1']
     for row in fns:
-        args.append(row['args1'])
-    args = list(map(tuple, args))
-
+        multiprocessing_args.append(row['args1'])
+    #args = list(map(tuple, args))
+    args = range(len(multiprocessing_args))
+    print(args)
     pool = multiprocessing.Pool(processes=6)
     #for i in range(len(args)-1):
         #print(totuple(args[i]))
@@ -525,9 +528,10 @@ def get_agg_numerics_data(df, file_name,  additional_data, exclude_cols, output,
             groupby_aggregate_name = '{}_{}_{}_{}_{}'.format(str(counter),file_name, '_'.join(groupby_cols), agg, select)
             print("adding process {}".format(groupby_aggregate_name))
             parallel_funcs_2.append({'id': 10+counter*0.001, 'function1': agg_single,
-                                   'args1': [train, select, agg, group_object, groupby_aggregate_name, groupby_cols]})
+                                   'args1': [train, select, agg, group_object, groupby_aggregate                                                                                                                                        _name, groupby_cols]})
 
-def agg_single(train, select,agg, group_object, groupby_aggregate_name, groupby_cols):
+def agg_single(index):
+    train, select, agg, group_object, groupby_aggregate_name, groupby_cols = multiprocessing_args[index]
     print('single processing {}'.format(groupby_aggregate_name))
     if train:
         df = df_application
