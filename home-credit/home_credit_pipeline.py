@@ -12,7 +12,10 @@ import lightgbm as lgbm
 from sklearn.model_selection import GridSearchCV
 from sklearn.ensemble import ExtraTreesClassifier
 import warnings
+import multiprocessing
 from multiprocessing import Process
+from multiprocessing import Pool
+
 import multiprocessing as mp
 from collections import Counter
 
@@ -88,11 +91,6 @@ class util:
                 df[col] = df[col].fillna(99999)
         return df
 
-    def compute_score(clf, X, y, scoring='accuracy'):
-        #http://scikit-learn.org/stable/auto_examples/model_selection/plot_roc_crossval.html#sphx-glr-auto-examples-model-selection-plot-roc-crossval-py
-        xval = cross_val_score(clf, X, y, cv = 10, scoring=scoring)
-        return np.mean(xval)
-
     def gen_train_test_split(df):
         from sklearn.model_selection import train_test_split
         X = df.drop(['TARGET'],axis=1)
@@ -100,212 +98,6 @@ class util:
         train_features, test_features, train_labels, test_labels = \
         train_test_split(X, y, test_size=0.1, random_state=42)
         return train_features, test_features, train_labels, test_labels
-
-    def compute_score(model, X_test, y_test):
-        #predictions = rf_model.predict(test_features)
-        #accuracy =  compute_score(rf_model,test_features,test_labels)
-        #print(accuracy)
-        #false_positive_rate, true_positive_rate, thresholds = roc_curve(y_test, model.predict_proba(X_test)[:,1])
-        #print(auc(false_positive_rate, true_positive_rate))
-        score = roc_auc_score(y_test, model.predict(X_test))
-        return score
-
-    def record_model(model_name, model, score):
-        model_inst = {}
-        model_inst['model'] = model
-        model_inst['model_name'] = model_name
-        model_inst['score'] = score
-        print('Recording Model and Score ===> {}: {}'.format(model_name, score))
-        models.append(model_inst)
-
-
-class Models:
-    def model_rf(train_features, test_features, train_labels, test_labels):
-        print('running Random Forest')
-        from sklearn.ensemble import RandomForestClassifier
-        model = RandomForestClassifier(n_estimators = 100,
-                                          random_state = 42,
-                                          n_jobs=-1,
-                                          oob_score=True,
-                                          min_samples_split=2,
-                                          min_samples_leaf=1,
-                                          max_features='auto',
-                                          bootstrap=True)
-
-
-        # Train the model on training data
-        model.fit(train_features, train_labels)
-
-        score = util.compute_score(model, test_features, test_labels)
-        util.record_model('random_forest',model, score)
-        return
-
-    def model_gbm(train_features, test_features, train_labels, test_labels):
-        print('running gbm')
-        from sklearn.ensemble import GradientBoostingClassifier
-        param_test1 = {'n_estimators':range(20,81,10)}
-
-        gb = GradientBoostingClassifier(criterion='mse',
-                      learning_rate=0.01,
-                      max_depth=10,
-                      n_estimators=1000,
-                      random_state=42,
-                      max_features='sqrt')
-        gb.fit(train_features,train_labels)
-        accuracy = util.compute_score(gb, test_features, test_labels)
-        util.record_model("gbm_1", gb, accuracy)
-
-    def model_xgb_2(train_features, test_features, train_labels, test_labels):
-        print('running xgboost')
-        import xgboost as xgb
-        xgb_model_def = xgb.XGBClassifier(max_depth=20,
-                                          n_estimators=100,
-                                          learning_rate=0.01,
-                                          random_state=42,
-                                          max_features='sqrt',
-                                          nthread=-1)
-        xgb_model = xgb_model_def.fit(train_features,train_labels)
-        accuracy = util.compute_score(xgb_model, test_features, test_labels)
-        util.record_model("xgb_1", xgb_model, accuracy)
-
-    def model_lgbm(X,X_test, y, y_test):
-        print('running light gbm')
-        # print(X.shape)
-        # print(X_test.shape)
-        # X.fillna(0, inplace=True)
-        # X_test  .fillna(0, inplace=True)
-        # y.fillna(0, inplace=True)
-        # y_test.fillna(0,inplace = True)
-        # from sklearn.preprocessing import StandardScaler
-        # sc = StandardScaler()
-        # X = sc.fit_transform(X)
-        # X_test = sc.transform(X_test)
-        params = {}
-        categorical_features=[]
-        #categorical_features = [c for c, col in enumerate(X.columns) if 'cat' in col]
-        train_data = lgbm.Dataset(X, label=y, categorical_feature=categorical_features)
-        test_data = lgbm.Dataset(X_test, label=y_test)
-
-        params = {
-            'task': 'train',
-            'boosting_type': 'gbdt',
-            'objective': 'binary',
-            'metric': {'binary_logloss', 'auc'},
-            'metric_freq': 1,
-            'is_training_metric': True,
-            'max_bin': 255,
-            'learning_rate': 0.1,
-            'num_leaves': 63,
-            'tree_learner': 'serial',
-            'feature_fraction': 0.8,
-            'bagging_fraction': 0.8,
-            'bagging_freq': 5,
-            'min_data_in_leaf': 50,
-            'min_sum_hessian_in_leaf': 5,
-            'is_enable_sparse': True,
-            'use_two_round_loading': False,
-            'is_save_binary_file': False,
-            'output_model': 'LightGBM_model.txt',
-            'num_machines': 1,
-            'local_listen_port': 12400,
-            'machine_list_file': 'mlist.txt',
-            'verbose': 0,
-            'subsample_for_bin': 200000,
-            'min_child_samples': 20,
-            'min_child_weight': 0.001,
-            'min_split_gain': 0.0,
-            'colsample_bytree': 1.0,
-            'reg_alpha': 0.0,
-            'reg_lambda': 0.0
-        }
-        # Create parameters to search
-        gridParams = {
-            'learning_rate': [0.1],
-            'num_leaves': [63],
-            'boosting_type': ['gbdt'],
-            'objective': ['binary']
-        }
-        #
-        model = lgbm.LGBMClassifier(
-            task = params['task'],
-            metric = params['metric'],
-            metric_freq = params['metric_freq'],
-            is_training_metric = params['is_training_metric'],
-            max_bin = params['max_bin'],
-            tree_learner = params['tree_learner'],
-            feature_fraction = params['feature_fraction'],
-            bagging_fraction = params['bagging_fraction'],
-            bagging_freq = params['bagging_freq'],
-            min_data_in_leaf = params['min_data_in_leaf'],
-            min_sum_hessian_in_leaf = params['min_sum_hessian_in_leaf'],
-            is_enable_sparse = params['is_enable_sparse'],
-            use_two_round_loading = params['use_two_round_loading'],
-            is_save_binary_file = params['is_save_binary_file'],
-            n_jobs = -1)
-
-        #
-        scoring = {'AUC': 'roc_auc'}
-
-        # Create the grid
-
-        # Run the grid
-        #grid.fit(X, y)
-        #params = grid.best_params_
-
-
-        # def prepLGB(data,
-        #             classCol='',
-        #             IDCol='',
-        #             fDrop=[]):
-        #
-        #     # Drop class column
-        #     if classCol != '':
-        #         labels = data[classCol]
-        #         fDrop = fDrop + [classCol]
-        #     else:
-        #         labels = []
-        #
-        #     if IDCol != '':
-        #         IDs = data[IDCol]
-        #     else:
-        #         IDs = []
-        #
-        #     if fDrop != []:
-        #         data = data.drop(fDrop,
-        #                          axis=1)
-        #
-        #     # Create LGB mats
-        #     lData = lgbm.Dataset(data, label=labels,
-        #                         free_raw_data=False,
-        #                         feature_name=list(data.columns),
-        #                         categorical_feature='auto')
-        #
-        #     return lData, labels, IDs, data
-        #
-        # Feature Scaling
-
-        # params['learning_rate'] = 0.003
-        # params['boosting_type'] = 'gbdt'
-        # params['objective'] = 'binary'
-        # params['metric'] = 'binary_logloss'
-        # params['sub_feature'] = 0.5
-        # params['num_leaves'] = 10
-        # params['min_data'] = 50
-        # params['max_depth'] = 10
-
-        model = lgbm.train(params,
-                           train_data,
-                           valid_sets=[test_data],
-                           verbose_eval=-1)
-        util.record_model("lgbm_1", model, 10)
-
-
-
-
-
-
-
-
 
 # CNT_CHILDREN
 def binn_col(df,col,buckets,labels):
@@ -530,33 +322,6 @@ def featureSelection(df, df_test):
     df_test = df_test[selected_features]
     return df, df_test
 
-def run(df, df_test, train=True):
-
-    print('splitting data')
-    X_train, X_test, y_train, y_test = util.gen_train_test_split(df)
-
-    Models.model_rf(X_train, X_test,y_train, y_test)
-    #Models.model_gbm(X_train, X_test, y_train, y_test)
-    #Models.model_xgb_2(X_train, X_test, y_train, y_test)
-    Models.model_lgbm(X_train, X_test, y_train, y_test)
-    score = 0
-    selected_model = None
-    print(models)
-    for model_inst in models:
-        if model_inst['score'] > score:
-            name = model_inst['model_name']
-            score = model_inst['score']
-            selected_model = model_inst['model']
-        print(name + " :  " + str(score))
-
-    #prediction = selected_model.predict(df_test_raw.drop(['TARGET'],axis=1))
-    df_test=df_test[X_train.columns]
-    prediction = selected_model.predict(df_test)
-    submission_df = pd.DataFrame()
-    submission_df['SK_ID_CURR'] = df_test['SK_ID_CURR']
-    submission_df['TARGET'] = prediction
-    submission_df.to_csv('home_credit_submission.csv',',', index=False)
-
 def make_subset(df, subset=0):
     if subset >0:
         df = df[:subset]
@@ -568,13 +333,14 @@ arr_in_process_cols=[]
 arr_in_process_cols_test=[]
 
 output = mp.Queue()
-def prep():
+parallel_funcs = []
+parallel_funcs_2 =[]
+def prep(subset=0):
     # load data
+    global df_application
+    global df_application_test
     df_application, df_application_test = load_data()
 
-
-    # Make Subset :
-    subset = 1000
     df_application = make_subset(df_application, subset)
     df_application_test = make_subset(df_application_test, subset)
     print("{},{}".format(df_application.shape, df_application_test.shape))
@@ -589,7 +355,7 @@ def prep():
     print("{},{}".format(df_application.shape, df_application_test.shape))
     # print(df_application['TARGET'].unique())
 
-    parallel_funcs =[]
+
     # Define an output queue
 
 
@@ -608,17 +374,18 @@ def prep():
     df_credit_card_balance['AMT_DRAWINGS_ATM_CURRENT'][df_credit_card_balance['AMT_DRAWINGS_ATM_CURRENT'] < 0] = np.nan
     df_credit_card_balance['AMT_DRAWINGS_CURRENT'][df_credit_card_balance['AMT_DRAWINGS_CURRENT'] < 0] = np.nan
 
-    parallel_funcs.append({'id':1, 'function1': get_agg_numerics_data, 'args1':[df_application, 'application', df_application,['SK_ID_CURR'], output,True]})
-    parallel_funcs.append({'id':2, 'function1': get_agg_numerics_data, 'args1':[df_application_test, 'application', df_application_test, ['SK_ID_CURR'], output,False]})
-    parallel_funcs.append({'id':3, 'function1': get_agg_numerics_data, 'args1':[df_application,'installments_payments', df_installments_payments,['SK_ID_CURR'], output,True]})
-    parallel_funcs.append({'id':4, 'function1': get_agg_numerics_data, 'args1': [df_application_test,'installments_payments', df_installments_payments, ['SK_ID_CURR'], output,False]})
-    parallel_funcs.append({'id':5, 'function1': get_agg_numerics_data, 'args1':[df_application,'bureau', df_bureau,['SK_ID_CURR'], output,True]})
-    parallel_funcs.append({'id':6, 'function1': get_agg_numerics_data, 'args1':[df_application_test, 'bureau', df_bureau, ['SK_ID_CURR'], output,False]})
-    parallel_funcs.append({'id':7, 'function1': get_agg_numerics_data, 'args1':[df_application,'POS_CASH_balance', df_pos_cash_balance, ['SK_ID_CURR'], output,True]})
-    parallel_funcs.append({'id':8, 'function1': get_agg_numerics_data, 'args1':[df_application_test,'POS_CASH_balance', df_pos_cash_balance, ['SK_ID_CURR'], output,False]})
-    parallel_funcs.append({'id':9, 'function1': get_agg_numerics_data, 'args1':[df_application,'previous_application', df_prev_application, ['SK_ID_CURR'], output,True]})
-    parallel_funcs.append({'id':10, 'function1': get_agg_numerics_data, 'args1':[df_application_test,'previous_application', df_prev_application, ['SK_ID_CURR'],output,False]})
-    #parallel_funcs.append({'id':11, 'function1': get_agg_numerics_data, 'args1':[df_application,'POS_CASH_balance', df_credit_card_balance, ['SK_ID_CURR'],output,True]})
+
+    get_agg_numerics_data(df_application, 'application', df_application,['SK_ID_CURR'], output,True)
+    get_agg_numerics_data(df_application_test, 'application', df_application_test, ['SK_ID_CURR'], output,False)
+    get_agg_numerics_data(df_application,'installments_payments', df_installments_payments,['SK_ID_CURR'], output,True)
+    get_agg_numerics_data(df_application_test,'installments_payments', df_installments_payments, ['SK_ID_CURR'], output,False)
+    get_agg_numerics_data(df_application,'bureau', df_bureau,['SK_ID_CURR'], output,True)
+    get_agg_numerics_data(df_application_test, 'bureau', df_bureau, ['SK_ID_CURR'], output,False)
+    get_agg_numerics_data(df_application,'POS_CASH_balance', df_pos_cash_balance, ['SK_ID_CURR'], output,True)
+    get_agg_numerics_data(df_application_test,'POS_CASH_balance', df_pos_cash_balance, ['SK_ID_CURR'], output,False)
+    get_agg_numerics_data(df_application,'previous_application', df_prev_application, ['SK_ID_CURR'], output,True)
+    get_agg_numerics_data(df_application_test,'previous_application', df_prev_application, ['SK_ID_CURR'],output,False)
+    #get_agg_numerics_data, 'args1':[df_application,'POS_CASH_balance', df_credit_card_balance, ['SK_ID_CURR'],output,True]})
     #parallel_funcs.append({'id':12, 'function1': get_agg_numerics_data, 'args1':[df_application_test,'POS_CASH_balance', df_credit_card_balance, ['SK_ID_CURR'],output,False]})
 
     arr_in_process_cols = []
@@ -626,7 +393,9 @@ def prep():
     arr_in_process_cols.append(df_application)
     arr_in_process_cols_test.append(df_application_test)
 
-    arr_in_process_cols_tmp, arr_in_process_cols_test_tmp = runInParallel(parallel_funcs)
+    print("starting multi process of {}".format(len(parallel_funcs)))
+    #arr_in_process_cols_tmp, arr_in_process_cols_test_tmp = runInParallel(parallel_funcs,False)
+    arr_in_process_cols_tmp, arr_in_process_cols_test_tmp = runInParallel(parallel_funcs_2, True)
     print(3)
 
     print(len(arr_in_process_cols_tmp))
@@ -675,31 +444,64 @@ def duplicate_columns(frame):
     print(arr_col_ind)
     df = pd.concat([df, frame.iloc[:, arr_col_ind]], axis=1)
     return df
+b=[]
+b_test = []
+def totuple(a):
+    try:
+        return tuple(i for i in a)
+    except TypeError:
+        return a
 
-def runInParallel(fns):
-  proc = []
-  for fn in fns:
-    p = Process(target=fn['function1'],args=fn['args1'])
-    p.start()
-    proc.append(p)
-  b=[]
-  b_test=[]
-  for p in proc:
-    results = output.get()
-    #print(results)
-
-    a = results[0]
-    a_test =results[1]
+def log_result(result):
+    a = result[0]
+    a_test = result[1]
+    print('logging result: {} {}'.format(a.shape if a is not None else 0 , a_test.shape if a_test is not None else 0))
 
     b.append(a)
     b_test.append(a_test)
-  for p in proc:
-    p.join()
-  return b, b_test
+def log_error(error):
+    print(error)
+def runInParallel(fns, final=False):
+    proc = []
+    args = []
+    function = fns[0]['function1']
+    for row in fns:
+        args.append(row['args1'])
+    args = tuple(map(tuple, args))
+
+    pool = multiprocessing.Pool(processes=4)
+    for i in range(len(args)-1):
+        #print(totuple(args[i]))
+        pool.apply_async(agg_single, args = totuple(args[i]), callback = log_result, error_callback=log_error)
+    pool.close()
+    pool.join()
+
+    # for fn in fns:
+    # p = Process(target=function,args=args)
+    # p.start()
+    # proc.append(p)
+    # b=[]
+    # b_test=[]
+    # if final:
+    #   for p in proc:
+    #     results = output.get()
+    #     #print(results)
+    #
+    #     a = results[0]
+    #     a_test =results[1]
+    #
+    #     b.append(a)
+    #     b_test.append(a_test)
+    # for p in proc:
+    # p.join()
+    return b, b_test
+
+
 
 def get_agg_numerics_data(df, file_name,  additional_data, exclude_cols, output, train= True):
-    arr_in_process_cols=None
-    arr_in_process_cols_test=None
+
+
+
     numeric_columns = []
     for col in additional_data.columns:
         if str(additional_data[col].dtype) not in ['object','category'] and col not in exclude_cols:
@@ -717,26 +519,32 @@ def get_agg_numerics_data(df, file_name,  additional_data, exclude_cols, output,
         for select, agg in specs:
             counter +=1
             groupby_aggregate_name = '{}_{}_{}_{}_{}'.format(str(counter),file_name, '_'.join(groupby_cols), agg, select)
-            print("processing {}".format(groupby_aggregate_name))
-            df = df.merge(group_object[select]
-                                  .agg(agg)
-                                  .reset_index()
-                                  .rename(index=str,
-                                          columns={select: groupby_aggregate_name})
-                                  [groupby_cols + [groupby_aggregate_name]],
-                                  on=groupby_cols,
-                                  how='inner')
-            groupby_aggregate_names.append(groupby_aggregate_name)
+            print("adding process {}".format(groupby_aggregate_name))
+            parallel_funcs_2.append({'id': 10+counter*0.001, 'function1': agg_single,
+                                   'args1': [train, select, agg, group_object, groupby_aggregate_name, groupby_cols]})
+
+def agg_single(train, select,agg, group_object, groupby_aggregate_name, groupby_cols):
+    print('single processing {}'.format(groupby_aggregate_name))
     if train:
-        arr_in_process_cols= df[list(set(groupby_aggregate_names))]
+        df = df_application
     else:
-        arr_in_process_cols_test = df[list(set(groupby_aggregate_names))]
+        df = df_application_test
+    arr_in_process_cols=None
+    arr_in_process_cols_test=None
+    df = df.merge(group_object[select]
+                  .agg(agg)
+                  .reset_index()
+                  .rename(index=str,
+                          columns={select: groupby_aggregate_name})
+                  [groupby_cols + [groupby_aggregate_name]],
+                  on=groupby_cols,
+                  how='inner')
+    if train:
+        arr_in_process_cols= df[groupby_aggregate_name]
+    else:
+        arr_in_process_cols_test = df[groupby_aggregate_name]
 
-    output.put((arr_in_process_cols,arr_in_process_cols_test))
-        
-    print("{}".format(df.shape))
-
-
+    return arr_in_process_cols,arr_in_process_cols_test
 
 def load_data():
     df_application = pd.read_csv('application_train.csv')
@@ -752,21 +560,7 @@ def load_data():
     #df_application, df_application_test = featureSelection(df_application, df_application_test)
 
 
-#prep()
-#exit()
+prep()
 
 
 
-
-
-df = pd.read_pickle('application_processed.pickle')
-df_test = pd.read_pickle('application_test_processed.pickle')
-
-print(Counter(df))
-print(df.shape)
-print(df_test.shape)
-print(set(df.columns)-set(df_test.columns))
-#df.drop(['CODE_GENDER__XNA'],axis=1, inplace=True)
-
-
-run(df,df_test,True)
