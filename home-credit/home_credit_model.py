@@ -22,7 +22,13 @@ models = []
 
 
 class util:
-
+    def gen_train_test_split(df):
+        from sklearn.model_selection import train_test_split
+        X = df.drop(['TARGET'],axis=1)
+        y = df['TARGET']
+        train_features, test_features, train_labels, test_labels = \
+        train_test_split(X, y, test_size=0.1, random_state=42)
+        return train_features, test_features, train_labels, test_labels
     def compute_score(clf, X, y, scoring='accuracy'):
         # http://scikit-learn.org/stable/auto_examples/model_selection/plot_roc_crossval.html#sphx-glr-auto-examples-model-selection-plot-roc-crossval-py
         xval = cross_val_score(clf, X, y, cv=10, scoring=scoring)
@@ -52,7 +58,7 @@ class Models:
         from sklearn.ensemble import RandomForestClassifier
         model = RandomForestClassifier(n_estimators=100,
                                        random_state=42,
-                                       n_jobs=-1,
+                                       n_jobs=10,
                                        oob_score=True,
                                        min_samples_split=2,
                                        min_samples_leaf=1,
@@ -89,7 +95,7 @@ class Models:
                                           learning_rate=0.01,
                                           random_state=42,
                                           max_features='sqrt',
-                                          nthread=-1)
+                                          nthread=10)
         xgb_model = xgb_model_def.fit(train_features, train_labels)
         accuracy = util.compute_score(xgb_model, test_features, test_labels)
         util.record_model("xgb_1", xgb_model, accuracy)
@@ -116,34 +122,54 @@ class Models:
             'task': 'train',
             'boosting_type': 'gbdt',
             'objective': 'binary',
-            'metric': {'binary_logloss', 'auc'},
-            'metric_freq': 1,
-            'is_training_metric': True,
-            'max_bin': 255,
-            'learning_rate': 0.1,
-            'num_leaves': 63,
-            'tree_learner': 'serial',
-            'feature_fraction': 0.8,
-            'bagging_fraction': 0.8,
-            'bagging_freq': 5,
-            'min_data_in_leaf': 50,
-            'min_sum_hessian_in_leaf': 5,
-            'is_enable_sparse': True,
-            'use_two_round_loading': False,
-            'is_save_binary_file': False,
-            'output_model': 'LightGBM_model.txt',
-            'num_machines': 1,
-            'local_listen_port': 12400,
-            'machine_list_file': 'mlist.txt',
-            'verbose': 0,
-            'subsample_for_bin': 200000,
-            'min_child_samples': 20,
-            'min_child_weight': 0.001,
-            'min_split_gain': 0.0,
-            'colsample_bytree': 1.0,
+            'metric': 'auc',
+            'num_boost_round': 5000,
+            'early_stopping_round': 100,
+            'learning_rate': 0.02,
+            'max_bin':300,
+            'max_depth': -1,
+            'num_leaves': 30,
+            'min_child_samples': 70,
+            'subsample': 1.0,
+            'subsample_freq': 1,
+            'colsample_bytree': 0.05,
+            'min_gain_to_split': 0.5,
+            'reg_lambda': 100,
             'reg_alpha': 0.0,
-            'reg_lambda': 0.0
+            'scale_pos_weight': 1,
+            'is_unbalance': False,
         }
+            #
+            # 'metric_freq': 1,
+            # 'is_training_metric': True,
+            # 'max_bin': 300,
+            #
+            #
+            # 'tree_learner': 'serial',
+            # 'feature_fraction': 0.8,
+            # 'bagging_fraction': 0.8,
+            # 'bagging_freq': 5,
+            # 'min_data_in_leaf': 50,
+            # 'min_sum_hessian_in_leaf': 5,
+            # 'is_enable_sparse': True,
+            # 'use_two_round_loading': False,
+            # 'is_save_binary_file': False,
+            # 'output_model': 'LightGBM_model.txt',
+            # 'num_machines': 1,
+            # 'local_listen_port': 12400,
+            # 'machine_list_file': 'mlist.txt',
+            # 'verbose': 0,
+            # 'subsample_for_bin': 200000,
+            #
+            # 'early_stopping_round':1,
+            #
+            # 'min_child_weight': 0.001,
+            # 'min_split_gain': 0.0,
+            # 'colsample_bytree': 1.0,
+            # 'reg_alpha': 0.0,
+            # 'reg_lambda': 0.0,
+            # 'n_jobs':5,
+
         # Create parameters to search
         gridParams = {
             'learning_rate': [0.1],
@@ -151,32 +177,36 @@ class Models:
             'boosting_type': ['gbdt'],
             'objective': ['binary']
         }
+
         #
         model = lgbm.LGBMClassifier(
             task=params['task'],
             metric=params['metric'],
-            metric_freq=params['metric_freq'],
-            is_training_metric=params['is_training_metric'],
+            metric_freq=1,
+            is_training_metric=True,
             max_bin=params['max_bin'],
-            tree_learner=params['tree_learner'],
-            feature_fraction=params['feature_fraction'],
-            bagging_fraction=params['bagging_fraction'],
-            bagging_freq=params['bagging_freq'],
-            min_data_in_leaf=params['min_data_in_leaf'],
-            min_sum_hessian_in_leaf=params['min_sum_hessian_in_leaf'],
-            is_enable_sparse=params['is_enable_sparse'],
-            use_two_round_loading=params['use_two_round_loading'],
-            is_save_binary_file=params['is_save_binary_file'],
-            n_jobs=-1)
+            # tree_learner=params['tree_learner'],
+            # feature_fraction=params['feature_fraction'],
+            # bagging_fraction=params['bagging_fraction'],
+            # bagging_freq=params['bagging_freq'],
+            # min_data_in_leaf=params['min_data_in_leaf'],
+            # min_sum_hessian_in_leaf=params['min_sum_hessian_in_leaf'],
+            # is_enable_sparse=params['is_enable_sparse'],
+            # use_two_round_loading=params['use_two_round_loading'],
+            # is_save_binary_file=params['is_save_binary_file'],
+            n_jobs=5)
 
         #
         scoring = {'AUC': 'roc_auc'}
 
         # Create the grid
-
+        grid = GridSearchCV(model, gridParams,
+                            verbose=0,
+                            cv=4,
+                            n_jobs=5)
         # Run the grid
-        # grid.fit(X, y)
-        # params = grid.best_params_
+        #grid.fit(X, y)
+        #params = grid.best_params_
 
         # def prepLGB(data,
         #             classCol='',

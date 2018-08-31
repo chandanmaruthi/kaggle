@@ -453,15 +453,16 @@ def totuple(a):
     except TypeError:
         return a
 
-def log_result(result):
+def log_result(results):
     global b
     global b_test
-    a = result[0]
-    a_test = result[1]
-    print('logging result: {} {}'.format(a.shape if a is not None else 0 , a_test.shape if a_test is not None else 0))
+    for result in results:
+        a = result[0]
+        a_test = result[1]
+        print('logging result: {} {}'.format(a.shape if a is not None else 0 , a_test.shape if a_test is not None else 0))
+        b.append(a)
+        b_test.append(a_test)
 
-    b.append(a)
-    b_test.append(a_test)
 def log_error(error):
     print(error)
 multiprocessing_args = []
@@ -475,11 +476,12 @@ def runInParallel(fns, final=False):
     #args = list(map(tuple, args))
     args = range(len(multiprocessing_args))
     print(args)
-    pool = multiprocessing.Pool(processes=6)
+    pool = multiprocessing.Pool(processes=3)
     #for i in range(len(args)-1):
         #print(totuple(args[i]))
 
-    pool.map_async(agg_single, args, callback = log_result, error_callback=log_error).wait()
+    results =pool.map_async(agg_single, args, callback = log_result, error_callback=log_error).wait()
+    #results.get()
     pool.close()
     pool.join()
 
