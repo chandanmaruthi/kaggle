@@ -129,12 +129,12 @@ class Models:
             'max_bin':300,
             'max_depth': -1,
             'num_leaves': 30,
-            'min_child_samples': 70,
+            'min_child_samples': 600,
             'subsample': 1.0,
             'subsample_freq': 1,
-            'colsample_bytree': 0.05,
+            'colsample_bytree': 1,
             'min_gain_to_split': 0.5,
-            'reg_lambda': 100,
+            'reg_lambda': 50,
             'reg_alpha': 0.0,
             'scale_pos_weight': 1,
             'is_unbalance': False,
@@ -259,10 +259,10 @@ def run(df, df_test, train=True):
     print('splitting data')
     X_train, X_test, y_train, y_test = util.gen_train_test_split(df)
 
-    Models.model_rf(X_train, X_test, y_train, y_test)
+    #Models.model_rf(X_train, X_test, y_train, y_test)
     # Models.model_gbm(X_train, X_test, y_train, y_test)
-    # Models.model_xgb_2(X_train, X_test, y_train, y_test)
-    Models.model_lgbm(X_train, X_test, y_train, y_test)
+    Models.model_xgb_2(X_train, X_test, y_train, y_test)
+    #Models.model_lgbm(X_train, X_test, y_train, y_test)
     score = 0
     selected_model = None
     print(models)
