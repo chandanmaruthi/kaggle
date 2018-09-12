@@ -1,6 +1,12 @@
 from sklearn.feature_selection import SelectFromModel
 from lightgbm import LGBMClassifier
 import pandas as pd
+import os
+
+if os.path.exists("fs_data.pickle"):
+    os.remove("fs_data.pickle")
+if os.path.exists("fs_data.pickle"):
+    os.remove("fs_data.pickle")
 
 df = pd.read_pickle('application_processed.pickle')
 df_test = pd.read_pickle('application_test_processed.pickle')

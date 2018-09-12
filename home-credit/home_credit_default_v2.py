@@ -61,6 +61,32 @@ class util:
 
         df= pd.concat([df,oh_df],axis=1)
         return df
+    # scale values
+    def scale_values(self, df, col_name):
+        new_col_name = 'scaled_' + str(col_name)
+        df[new_col_name] -= df[col_name].min()
+        df[new_col_name] /= df[col_name].max()
+        return df[col_name]
+
+    def log_transform_values(self, df, col_name):
+        new_col_name = 'log_transformed_' + str(col_name)
+        df[new_col_name] -= df[col_name].min()
+        df[new_col_name] /= df[col_name].max()
+        df[new_col_name].apply(np.log)
+        return df[col_name]
+
+    def min_max_scale_values(self, df, col_name):
+        from sklearn.preprocessing import MinMaxScaler
+        new_col_name = 'min_max_scaled' + str(col_name)
+        scaler = MinMaxScaler()
+        df[new_col_name] = pd.DataFrame(scaler.fit_transform(df), columns=[new_col_name])
+        return df[col_name]
+
+    def standard_scale_values(self, df, col_name):
+        import sklearn.preprocessing as preproc
+        new_col_name = 'standard_scaled' + str(col_name)
+        df[new_col_name] = preproc.StandardScaler().fit_transform(df[[col_name]])
+        return df[col_name]
 
     def add_missing_dummy_columns( d, columns ):
         missing_cols = set( columns ) - set( d.columns )

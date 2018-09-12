@@ -208,8 +208,11 @@ def load_data():
     return df_application, df_application_test
     # Feature Selection
     # df_application, df_application_test = featureSelection(df_application, df_application_test)
+import os
+if os.path.exists("home_credit_submission.csv"):
+    os.remove("home_credit_submission.csv")
 
-df = pd.read_pickle('fs_data.pickle')
-df_test = pd.read_pickle('fs_test_data.pickle')
+df = pd.read_pickle('application_train.csv')
+df_test = pd.read_pickle('application_test.csv')
 
 run(df, df_test, True)

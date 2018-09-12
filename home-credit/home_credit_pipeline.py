@@ -1,11 +1,14 @@
 import matplotlib
 import numpy as np
+import os
 #1import matplotlib.pyplot as plt
 #%matplotlib inline
 import pandas as pd
 from pandas_summary import DataFrameSummary
 from sklearn.preprocessing import LabelEncoder
 from sklearn.preprocessing import OneHotEncoder
+import category_encoders as ce
+
 from sklearn.model_selection import cross_val_score
 from sklearn.metrics import roc_curve, auc, roc_auc_score
 import lightgbm as lgbm
@@ -18,17 +21,18 @@ from multiprocessing import Pool
 
 import multiprocessing as mp
 from collections import Counter
-
+import psutil
 warnings.filterwarnings("ignore")
 
 models = []
-
+parallel_funcs = []
+parallel_funcs_2 =[]
 
 class util:
 
-    def handle_categoricals(df, all_data):
+    def handle_categoricals(df, df_test, train=True):
         # Create a label encoder object
-
+        all_df_data = pd.concat([df,df_test],axis=0)
 
         le_count = 0
         oh_count = 0
@@ -38,26 +42,23 @@ class util:
             le = LabelEncoder()
             if col == 'TARGET':
                 continue
+            print(col[:2])
+            if col[:2]=="te_":
+                continue
             all_df = pd.DataFrame()
-            all_df[col] = all_data[col]
+            all_df[col] = all_df_data[col]
 
             if str(df[col].dtype) in ['object', 'category']:
                 # If 2 or fewer unique categories
                 if len(list(df[col].unique())) <= 2:
-                    #print('le :' + col)
-                    # Train on the training data
                     le.fit(all_df[col].astype(str))
-                    # Transform both training and testing data
-                    df['le_'+str(col)] = le.transform(df[col].astype(str))
-                    # df_application[col] = le.transform(df_application[col])
-
-                    # Keep track of how many columns were label encoded
+                    #df['le_'+str(col)] = le.transform(df[col].astype(str))
                     le_count += 1
                 else:
                     oh_count +=1
-                    #print('ce :' + col)
                     oh_df = pd.concat([oh_df,pd.get_dummies(df[col].astype(str),prefix=col+'_')],axis=1)
-                df.drop([col], axis=1, inplace=True)
+
+
 
         print('%d columns were label encoded.' % le_count)
         print('%d columns were one hot encoded.' % oh_count)
@@ -65,6 +66,24 @@ class util:
         df= pd.concat([df,oh_df],axis=1)
         return df
 
+    def handle_categoricals_target_encode(df_train, df_test):
+        for col in df_train:
+            if col == 'TARGET':
+                continue
+            if str(df_train[col].dtype) in ['object', 'category']:
+                #Target Encoding
+                print("target encoding {}".format(col))
+                te = ce.TargetEncoder(impute_missing=False, handle_unknown='ignore')
+                new_cats = list(set(df_train[col].unique()) -set(df_test[col].unique()))
+                new_df = df_train[[col,"TARGET"]]
+                for new_cat in new_cats:
+                    new_df.append([new_cat,0])
+                te.fit(new_df[col].values,new_df['TARGET'].values)
+                df_train['te_'+str(col)] =  te.transform(df_train[col].values)
+                df_test['te_' + str(col)] = te.transform(df_test[col].values)
+
+        return df_train, df_test
+        
     def add_missing_dummy_columns( d, columns ):
         missing_cols = set( columns ) - set( d.columns )
         for c in missing_cols:
@@ -98,7 +117,32 @@ class util:
         train_features, test_features, train_labels, test_labels = \
         train_test_split(X, y, test_size=0.1, random_state=42)
         return train_features, test_features, train_labels, test_labels
+    # scale values
+    def scale_values(df, col_name):
+        new_col_name = 'scaled_' + str(col_name)
+        df[new_col_name] = df[col_name] - df[col_name].min()
+        df[new_col_name] = df[col_name] / df[col_name].max()
+        return df[new_col_name]
 
+    def log_transform_values( df, col_name):
+        new_col_name = 'log_transformed_' + str(col_name)
+        df[new_col_name] = df[col_name] - df[col_name].min()
+        df[new_col_name] = df[col_name] - df[col_name].max()
+        df[new_col_name].apply(np.log)
+        return df[new_col_name]
+
+    def min_max_scale_values(df, col_name):
+        from sklearn.preprocessing import MinMaxScaler
+        new_col_name = 'min_max_scaled' + str(col_name)
+        scaler = MinMaxScaler()
+        df[new_col_name] = pd.DataFrame(scaler.fit_transform(df), columns=[new_col_name])
+        return df[new_col_name]
+
+    def standard_scale_values(df, col_name):
+        import sklearn.preprocessing as preproc
+        new_col_name = 'standard_scaled' + str(col_name)
+        df[new_col_name] = preproc.StandardScaler().fit_transform(df[[col_name]])
+        return df[new_col_name]
 # CNT_CHILDREN
 def binn_col(df,col,buckets,labels):
     return pd.cut(df[col],buckets, labels=labels)
@@ -177,6 +221,27 @@ def clean_up(df):
     df = util.handle_nulls(df)
     return df
 
+
+def apply_transform(df, transforms):
+    for col in df:
+        if col == 'TARGET':
+            continue
+        if str(df[col].dtype) not in ['object', 'category']:
+            for transform in transforms:
+                new_col_name = transform + "_" + col
+                #["scale","log_transform","min_max_transform","standard_scale"]
+                #for transform in transforms:
+                print(new_col_name + "-----------"+transform)
+                if transform == 'scale':
+                    df[new_col_name] = util.scale_values(df, col)
+                elif transform == 'log_transform':
+                    df[new_col_name] = util.log_transform_values(df, col)
+                elif transform == 'min_max_scale':
+                    df[new_col_name] = util.min_max_scale_values(df, col)
+                elif transform == 'standard_scale':
+                    df[new_col_name] = util.standard_scale_values(df, col)
+    return df
+
 def fe(df, df_2):
     df['HAS_CHILDREN']= binn_col(df,'CNT_CHILDREN',[-1,1,50], labels=[0,1])
     df['binned_' +'CNT_CHILDREN']= binn_col(df,'CNT_CHILDREN',[-1,1,3,50], labels=[1,2,3])
@@ -213,86 +278,8 @@ def fe(df, df_2):
     df['phone_to_birth_ratio'] = df['DAYS_LAST_PHONE_CHANGE'] / df['DAYS_BIRTH']
     df['phone_to_employ_ratio'] = df['DAYS_LAST_PHONE_CHANGE'] / df['DAYS_EMPLOYED']
 
-    # External sources# Exter
-    # df['external_sources_weighted'] = df.EXT_SOURCE_1 * 2 + df.EXT_SOURCE_2 * 3 + df.EXT_SOURCE_3 * 4
-    # for function_name in ['min', 'max', 'sum', 'mean', 'nanmedian']:
-    #     df['external_sources_{}'.format(function_name)] = eval('np.{}'.format(function_name))(
-    #         df[['EXT_SOURCE_1', 'EXT_SOURCE_2', 'EXT_SOURCE_3']], axis=1)
-    #
-    # AGGREGATION_RECIPIES = [
-    #     (['CODE_GENDER', 'NAME_EDUCATION_TYPE'], [('AMT_ANNUITY', 'max'),
-    #                                               ('AMT_CREDIT', 'max'),
-    #                                               ('EXT_SOURCE_1', 'mean'),
-    #                                               ('EXT_SOURCE_2', 'mean'),
-    #                                               ('OWN_CAR_AGE', 'max'),
-    #                                               ('OWN_CAR_AGE', 'sum')]),
-    #     (['CODE_GENDER', 'ORGANIZATION_TYPE'], [('AMT_ANNUITY', 'mean'),
-    #                                             ('AMT_INCOME_TOTAL', 'mean'),
-    #                                             ('DAYS_REGISTRATION', 'mean'),
-    #                                             ('EXT_SOURCE_1', 'mean')]),
-    #     (['CODE_GENDER', 'REG_CITY_NOT_WORK_CITY'], [('AMT_ANNUITY', 'mean'),
-    #                                                  ('CNT_CHILDREN', 'mean'),
-    #                                                  ('DAYS_ID_PUBLISH', 'mean')]),
-    #     (['CODE_GENDER', 'NAME_EDUCATION_TYPE', 'OCCUPATION_TYPE', 'REG_CITY_NOT_WORK_CITY'], [('EXT_SOURCE_1', 'mean'),
-    #                                                                                            ('EXT_SOURCE_2',
-    #                                                                                             'mean')]),
-    #     (['NAME_EDUCATION_TYPE', 'OCCUPATION_TYPE'], [('AMT_CREDIT', 'mean'),
-    #                                                   ('AMT_REQ_CREDIT_BUREAU_YEAR', 'mean'),
-    #                                                   ('APARTMENTS_AVG', 'mean'),
-    #                                                   ('BASEMENTAREA_AVG', 'mean'),
-    #                                                   ('EXT_SOURCE_1', 'mean'),
-    #                                                   ('EXT_SOURCE_2', 'mean'),
-    #                                                   ('EXT_SOURCE_3', 'mean'),
-    #                                                   ('NONLIVINGAREA_AVG', 'mean'),
-    #                                                   ('OWN_CAR_AGE', 'mean'),
-    #                                                   ('YEARS_BUILD_AVG', 'mean')]),
-    #     (['NAME_EDUCATION_TYPE', 'OCCUPATION_TYPE', 'REG_CITY_NOT_WORK_CITY'], [('ELEVATORS_AVG', 'mean'),
-    #                                                                             ('EXT_SOURCE_1', 'mean')]),
-    #     (['OCCUPATION_TYPE'], [('AMT_ANNUITY', 'mean'),
-    #                            ('CNT_CHILDREN', 'mean'),
-    #                            ('CNT_FAM_MEMBERS', 'mean'),
-    #                            ('DAYS_BIRTH', 'mean'),
-    #                            ('DAYS_EMPLOYED', 'mean'),
-    #                            ('DAYS_ID_PUBLISH', 'mean'),
-    #                            ('DAYS_REGISTRATION', 'mean'),
-    #                            ('EXT_SOURCE_1', 'mean'),
-    #                            ('EXT_SOURCE_2', 'mean'),
-    #                            ('EXT_SOURCE_3', 'mean')]),
-    # ]
-
-    # groupby_aggregate_names = []
-    # for groupby_cols, specs in AGGREGATION_RECIPIES:
-    #     group_object = df.groupby(groupby_cols)
-    #     for select, agg in specs:
-    #         groupby_aggregate_name = '{}_{}_{}'.format('_'.join(groupby_cols), agg, select)
-    #         df = df.merge(group_object[select]
-    #                     .agg(agg)
-    #                     .reset_index()
-    #                     .rename(index=str,
-    #                             columns={select: groupby_aggregate_name})
-    #                     [groupby_cols + [groupby_aggregate_name]],
-    #                     on=groupby_cols,
-    #                     how='left')
-    #         groupby_aggregate_names.append(groupby_aggregate_name)
-    #
-    # diff_feature_names = []
-    # for groupby_cols, specs in AGGREGATION_RECIPIES:
-    #     for select, agg in specs:
-    #         if agg in ['mean', 'median', 'max', 'min']:
-    #             groupby_aggregate_name = '{}_{}_{}'.format('_'.join(groupby_cols), agg, select)
-    #             diff_name = '{}_diff'.format(groupby_aggregate_name)
-    #             abs_diff_name = '{}_abs_diff'.format(groupby_aggregate_name)
-    #
-    #             df[diff_name] = df[select] - df[groupby_aggregate_name]
-    #             df[abs_diff_name] = np.abs(df[select] - df[groupby_aggregate_name])
-    #
-    #             diff_feature_names.append(diff_name)
-    #             diff_feature_names.append(abs_diff_name)
-
-
-
-
-    df = util.handle_categoricals(df, pd.concat([df, df_2],axis=0))
+    #df = util.handle_categoricals_target_encode(df,)
+    df = util.handle_categoricals(df, df_2)
 
     return df
 
@@ -333,32 +320,69 @@ arr_in_process_cols=[]
 arr_in_process_cols_test=[]
 
 output = mp.Queue()
-parallel_funcs = []
-parallel_funcs_2 =[]
-def prep(subset=0):
+
+
+
+
+
+
+
+
+def prep_1(subset=0):
     # load data
     global df_application
     global df_application_test
+
+
     df_application, df_application_test = load_data()
 
     df_application = make_subset(df_application, subset)
     df_application_test = make_subset(df_application_test, subset)
     print("{},{}".format(df_application.shape, df_application_test.shape))
 
+    save_intermediate(df_application, df_application_test)
+    print(psutil.Process(pid=os.getpid()).memory_full_info())
+
+def prep_2():
+    df_application, df_application_test = load_intermediate()
     # Clean up data
     df_application = clean_up(df_application)
     df_application_test =  clean_up(df_application_test)
     print("{},{}".format(df_application.shape, df_application_test.shape))
+    save_intermediate(df_application,df_application_test)
+
+def prep_3():
+    df_application, df_application_test = load_intermediate()
+    print(psutil.Process(pid=os.getpid()).memory_full_info())
+    df_application = apply_transform(df_application,["scale","log_transform","min_max_transform","standard_scale"])
+    df_application_test = apply_transform(df_application_test, ["scale", "log_transform", "min_max_transform", "standard_scale"])
+    save_intermediate(df_application, df_application_test)
+
+def prep_4():
+    df_application, df_application_test = load_intermediate()
+    print(psutil.Process(pid=os.getpid()).memory_full_info())
+    df_application, df_application_test = util.handle_categoricals_target_encode(df_application, df_application_test)
+    save_intermediate(df_application, df_application_test)
+
+def prep_5():
+    df_application, df_application_test = load_intermediate()
+    print(psutil.Process(pid=os.getpid()).memory_full_info())
     # # Feature Engineer
     df_application = fe(df_application, df_application_test)
     df_application_test = fe(df_application_test, df_application)
     print("{},{}".format(df_application.shape, df_application_test.shape))
     # print(df_application['TARGET'].unique())
+    save_intermediate(df_application, df_application_test)
+
 
 
     # Define an output queue
-
-
+def prep_6():
+    global df_application
+    global df_application_test
+    global b
+    global b_test
+    df_application, df_application_test = load_intermediate()
     df_installments_payments = pd.read_csv('installments_payments.csv')
     df_bureau = pd.read_csv('bureau.csv')
     df_pos_cash_balance = pd.read_csv('POS_CASH_balance.csv')
@@ -395,20 +419,27 @@ def prep(subset=0):
 
     print("starting multi process of {}".format(len(parallel_funcs)))
     #arr_in_process_cols_tmp, arr_in_process_cols_test_tmp = runInParallel(parallel_funcs,False)
-    arr_in_process_cols_tmp, arr_in_process_cols_test_tmp = runInParallel(parallel_funcs_2, True)
-    print(3)
+    import time
+    n_batch =10
+    #parallel_funcs_2 = parallel_funcs_2[:10]
+    epochs = len(parallel_funcs_2)//n_batch
+    print(psutil.Process(pid=os.getpid()).memory_full_info())
+    for epoch in range(epochs):
+        print("running epoch {} of {}".format(epoch, epochs))
+        arr_in_process_cols_tmp, arr_in_process_cols_test_tmp = runInParallel(parallel_funcs_2[epoch*n_batch:(epoch*n_batch)+n_batch], True)
+        b=[]
+        b_test=[]
+        print(len(arr_in_process_cols_tmp))
+        print(len(arr_in_process_cols_test_tmp))
 
-    print(len(arr_in_process_cols_tmp))
-    print(len(arr_in_process_cols_test_tmp))
+        for df_tmp in arr_in_process_cols_tmp:
+            df_application = pd.concat([df_application, df_tmp],axis=1)
+        df_tmp = None
+        for df_tmp in arr_in_process_cols_test_tmp:
+            df_application_test = pd.concat([df_application_test, df_tmp],axis=1)
 
-    for df_tmp in arr_in_process_cols_tmp:
-        df_application = pd.concat([df_application, df_tmp],axis=1)
-    df_tmp = None
-    for df_tmp in arr_in_process_cols_test_tmp:
-        df_application_test = pd.concat([df_application_test, df_tmp],axis=1)
-
-    print("{},{}".format(df_application.shape, df_application_test.shape))
-
+        print("{},{}".format(df_application.shape, df_application_test.shape))
+        time.sleep(5)
 
     print("check for duplicate cols")
     df_application= duplicate_columns(df_application)
@@ -437,7 +468,6 @@ def duplicate_columns(frame):
     arr_col_ind =[]
     df= pd.DataFrame()
     for id in range(len(frame.columns)-1):
-        print(id)
         if frame.iloc[:, id].name not in arr_cols:
             #df= pd.concat([df, frame.iloc[:,id]], axis=1)
             arr_col_ind.append(id)
@@ -456,10 +486,11 @@ def totuple(a):
 def log_result(results):
     global b
     global b_test
+    print('in log results')
     for result in results:
         a = result[0]
         a_test = result[1]
-        print('logging result: {} {}'.format(a.shape if a is not None else 0 , a_test.shape if a_test is not None else 0))
+        print('logging multiprocess result: {} {}'.format(a.shape if a is not None else 0 , a_test.shape if a_test is not None else 0))
         b.append(a)
         b_test.append(a_test)
 
@@ -468,48 +499,26 @@ def log_error(error):
 multiprocessing_args = []
 def runInParallel(fns, final=False):
     global multiprocessing_args
+    global b
+    global b_test
     proc = []
 
     function = fns[0]['function1']
     for row in fns:
         multiprocessing_args.append(row['args1'])
-    #args = list(map(tuple, args))
     args = range(len(multiprocessing_args))
-    print(args)
     pool = multiprocessing.Pool(processes=3)
-    #for i in range(len(args)-1):
-        #print(totuple(args[i]))
-
     results =pool.map_async(agg_single, args, callback = log_result, error_callback=log_error).wait()
-    #results.get()
     pool.close()
     pool.join()
 
-    # for fn in fns:
-    # p = Process(target=function,args=args)
-    # p.start()
-    # proc.append(p)
-    # b=[]
-    # b_test=[]
-    # if final:
-    #   for p in proc:
-    #     results = output.get()
-    #     #print(results)
-    #
-    #     a = results[0]
-    #     a_test =results[1]
-    #
-    #     b.append(a)
-    #     b_test.append(a_test)
-    # for p in proc:
-    # p.join()
     return b, b_test
 
 
 
 def get_agg_numerics_data(df, file_name,  additional_data, exclude_cols, output, train= True):
 
-
+    # print('a1')
 
     numeric_columns = []
     for col in additional_data.columns:
@@ -523,24 +532,33 @@ def get_agg_numerics_data(df, file_name,  additional_data, exclude_cols, output,
 
     groupby_aggregate_names = []
     counter =0
+    # print('a2')
     for groupby_cols, specs in AGGREGATION_RECIPIES:
         group_object = additional_data.groupby(groupby_cols)
         for select, agg in specs:
             counter +=1
             groupby_aggregate_name = '{}_{}_{}_{}_{}'.format(str(counter),file_name, '_'.join(groupby_cols), agg, select)
-            print("adding process {}".format(groupby_aggregate_name))
+            # print("adding process {}".format(groupby_aggregate_name))
             parallel_funcs_2.append({'id': 10+counter*0.001, 'function1': agg_single,
                                    'args1': [train, select, agg, group_object, groupby_aggregate_name, groupby_cols]})
+    # print('a3')
 
 def agg_single(index):
     train, select, agg, group_object, groupby_aggregate_name, groupby_cols = multiprocessing_args[index]
+    # global df_application
+    # global df_application_test
     print('single processing {}'.format(groupby_aggregate_name))
+    df_application , df_application_test = load_intermediate()
     if train:
         df = df_application
     else:
         df = df_application_test
+    if df is None:
+        print("df is none")
+        exit()
     arr_in_process_cols=None
     arr_in_process_cols_test=None
+    print("pre merge")
     df = df.merge(group_object[select]
                   .agg(agg)
                   .reset_index()
@@ -549,11 +567,12 @@ def agg_single(index):
                   [groupby_cols + [groupby_aggregate_name]],
                   on=groupby_cols,
                   how='inner')
+    print("post merge")
     if train:
         arr_in_process_cols= df[groupby_aggregate_name]
     else:
         arr_in_process_cols_test = df[groupby_aggregate_name]
-
+    print('completed single proc')
     return arr_in_process_cols,arr_in_process_cols_test
 
 def load_data():
@@ -570,7 +589,21 @@ def load_data():
     #df_application, df_application_test = featureSelection(df_application, df_application_test)
 
 
-prep()
+def load_intermediate():
+    df_application = pd.read_pickle('df_train.pickle')
+    df_application_test = pd.read_pickle('df_test.pickle')
+    return df_application, df_application_test
 
+def save_intermediate(df_application, df_application_test):
+    df_application.to_pickle('df_train.pickle')
+    df_application_test.to_pickle('df_test.pickle')
+
+
+#prep_1()
+#prep_2()
+#prep_3()
+#prep_4()
+#prep_5()
+prep_6()
 
 
