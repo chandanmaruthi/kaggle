@@ -383,11 +383,11 @@ def prep_6():
     global b
     global b_test
     df_application, df_application_test = load_intermediate()
-    df_installments_payments = pd.read_csv('installments_payments.csv')
-    df_bureau = pd.read_csv('bureau.csv')
-    df_pos_cash_balance = pd.read_csv('POS_CASH_balance.csv')
-    df_prev_application = pd.read_csv('previous_application.csv')
-    df_credit_card_balance = pd.read_csv('credit_card_balance.csv')
+    df_installments_payments = pd.read_csv('./data/installments_payments.csv')
+    df_bureau = pd.read_csv('./data/bureau.csv')
+    df_pos_cash_balance = pd.read_csv('./data/POS_CASH_balance.csv')
+    df_prev_application = pd.read_csv('./data/previous_application.csv')
+    df_credit_card_balance = pd.read_csv('./data/credit_card_balance.csv')
 
     #df_application['DAYS_LAST_PHONE_CHANGE'].replace(0, np.nan, inplace=True)
 
@@ -458,8 +458,8 @@ def prep_6():
 
     #print(Counter(df_application))
     # Checkpoint Save
-    df_application.to_pickle('application_processed.pickle')
-    df_application_test.to_pickle('application_test_processed.pickle')
+    df_application.to_pickle('./data/application_processed.pickle')
+    df_application_test.to_pickle('./data/application_test_processed.pickle')
     print("{},{}".format(df_application.shape, df_application_test.shape))
 
 
@@ -576,8 +576,8 @@ def agg_single(index):
     return arr_in_process_cols,arr_in_process_cols_test
 
 def load_data():
-    df_application = pd.read_csv('application_train.csv')
-    df_application_test = pd.read_csv('application_test.csv')
+    df_application = pd.read_csv('./data/application_train.csv')
+    df_application_test = pd.read_csv('./data/application_test.csv')
     # df_bureau_balance = pd.read_csv('bureau_balance.csv')
     # df_installment_payments = pd.read_csv('installments_payments.csv')
     # df_bureau = pd.read_csv('bureau.csv')
@@ -590,13 +590,13 @@ def load_data():
 
 
 def load_intermediate():
-    df_application = pd.read_pickle('df_train.pickle')
-    df_application_test = pd.read_pickle('df_test.pickle')
+    df_application = pd.read_pickle('./data/df_train.pickle')
+    df_application_test = pd.read_pickle('./data/df_test.pickle')
     return df_application, df_application_test
 
 def save_intermediate(df_application, df_application_test):
-    df_application.to_pickle('df_train.pickle')
-    df_application_test.to_pickle('df_test.pickle')
+    df_application.to_pickle('./data/df_train.pickle')
+    df_application_test.to_pickle('./data/df_test.pickle')
 
 
 #prep_1()
