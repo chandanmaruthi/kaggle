@@ -261,8 +261,8 @@ def run(df, df_test, train=True):
 
     #Models.model_rf(X_train, X_test, y_train, y_test)
     # Models.model_gbm(X_train, X_test, y_train, y_test)
-    Models.model_xgb_2(X_train, X_test, y_train, y_test)
-    #Models.model_lgbm(X_train, X_test, y_train, y_test)
+    #Models.model_xgb_2(X_train, X_test, y_train, y_test)
+    Models.model_lgbm(X_train, X_test, y_train, y_test)
     score = 0
     selected_model = None
     print(models)
@@ -291,8 +291,8 @@ def make_subset(df, subset=0):
 
 
 def load_data():
-    df_application = pd.read_csv('application_train.csv')
-    df_application_test = pd.read_csv('application_test.csv')
+    df_application = pd.read_csv('data/application_train.csv')
+    df_application_test = pd.read_csv('data/application_test.csv')
     # df_bureau_balance = pd.read_csv('bureau_balance.csv')
     # df_installment_payments = pd.read_csv('installments_payments.csv')
     # df_bureau = pd.read_csv('bureau.csv')
@@ -303,7 +303,7 @@ def load_data():
     # Feature Selection
     # df_application, df_application_test = featureSelection(df_application, df_application_test)
 
-df = pd.read_pickle('application_processed.pickle')
-df_test = pd.read_pickle('application_test_processed.pickle')
+df = pd.read_pickle('data/application_processed.pickle')
+df_test = pd.read_pickle('data/application_test_processed.pickle')
 
 run(df, df_test, True)

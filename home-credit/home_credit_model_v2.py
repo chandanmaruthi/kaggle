@@ -368,9 +368,9 @@ def train_base_learners(base_learners, inp, out, verbose=True):
     """Train all base learners in the library."""
     if verbose: print("Fitting models.")
     for i, (name, m) in enumerate(base_learners.items()):
-        if verbose: print("%s..." % name, end=" ", flush=False)
+        #if verbose: print("%s..:." % name, end=" ", flush=False)
         m.fit(inp, out)
-        if verbose: print("done")
+        #if verbose: print("done")
 def meta_learner:
     meta_learner = GradientBoostingClassifier(
         n_estimators=1000,
@@ -384,8 +384,8 @@ def meta_learner:
 
 
 
-df = pd.read_pickle('application_processed.pickle')
-df_test = pd.read_pickle('application_test_processed.pickle')
+df = pd.read_pickle('data/application_processed.pickle')
+df_test = pd.read_pickle('data/application_test_processed.pickle')
 
 X_train, X_test, y_train, y_test = util.gen_train_test_split(df)
 models = Models()
